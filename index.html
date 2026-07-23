@@ -1812,19 +1812,22 @@ async function snapToRoad(lat, lng){
   return null;
 }
 
-/* 전체 민원을 배치로 나눠 순차 스냅 (외부 서비스 과부하 방지) */
+/* 전체 민원을 배치로 나눠 순차 스냅 (외부 서비스 과부하 방지)
+   ※ 예전에는 배치가 끝날 때마다 지도를 통째로 다시 그려서, 데이터가 많아진 지금은
+   지도가 수십~수백 번 깜빡이는 원인이 되었습니다. 이제는 스냅이 전부 끝난 뒤 딱 한 번만
+   지도를 갱신하고, 실제로 지도에 표시되는 민원(우수 시상 데모용 데이터 제외)만 처리합니다. */
 async function snapAllReportsToRoads(){
   const BATCH = 5;
-  for(let i=0; i<reports.length; i+=BATCH){
-    const batch = reports.slice(i, i+BATCH);
+  const targets = displayableReports();
+  for(let i=0; i<targets.length; i+=BATCH){
+    const batch = targets.slice(i, i+BATCH);
     await Promise.all(batch.map(async r=>{
       const snapped = await snapToRoad(r.lat, r.lng);
       if(snapped){ r.lat = snapped.lat; r.lng = snapped.lng; r.roadSnapped = true; }
     }));
-    // 지도 화면을 보고 있다면 진행되는 대로 갱신
-    if(currentViewId==='c-map' && map) initMap();
     if(currentViewId==='a-route' && routeMap) showRouteDepotMarker();
   }
+  if(currentViewId==='c-map' && map) initMap();
   if(currentViewId==='a-dashboard') renderDashboard();
 }
 snapAllReportsToRoads().catch(()=>{});
