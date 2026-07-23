@@ -1,0 +1,3246 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>화성 로드케어 · 교통·도로민원 신속처리 기동단</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Noto+Sans+KR:wght@400;500;700;900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<style>
+  :root{
+    --brand-navy:#0B2447;
+    --brand-navy-2:#123A6B;
+    --brand-blue:#2F6FED;
+    --brand-blue-dark:#1C4FC0;
+    --asphalt:#16233F;
+    --asphalt-2:#1F3358;
+    --concrete:#EEF1F7;
+    --concrete-2:#ffffff;
+    --safety-orange:#F5960D;
+    --caution-yellow:#FFC93C;
+    --signal-green:#16B876;
+    --signal-green-dark:#0E8F5C;
+    --line-white:#F4F7FC;
+    --ink:#16233F;
+    --ink-soft:#5B6B85;
+    --danger:#E63950;
+    --radius:14px;
+    --font-display:'Chakra Petch', sans-serif;
+    --font-body:'Noto Sans KR', sans-serif;
+    --font-mono:'Space Mono', monospace;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:var(--font-body);background:var(--concrete);color:var(--ink);}
+  ::selection{background:var(--caution-yellow);color:var(--asphalt);}
+
+  /* ---- fake address bar / chrome ---- */
+  .browser-chrome{
+    background:var(--brand-navy);
+    padding:10px 16px;
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  .dots{display:flex;gap:6px;flex-shrink:0;}
+  .dots span{width:9px;height:9px;border-radius:50%;background:#345380;}
+  .addr{
+    flex:1;
+    background:var(--brand-navy-2);
+    border-radius:8px;
+    padding:7px 14px;
+    color:#c9d4e8;
+    font-family:var(--font-mono);
+    font-size:12.5px;
+    overflow-x:auto;
+    white-space:nowrap;
+    display:flex;
+    align-items:center;
+    gap:6px;
+  }
+  .addr .lock{color:var(--signal-green);}
+  .addr b{color:#fff;font-weight:400;}
+
+  /* ---- top nav ---- */
+  .topnav{
+    background:linear-gradient(135deg, var(--brand-navy) 0%, var(--brand-navy-2) 100%);
+    color:var(--line-white);
+    padding:14px 20px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    flex-wrap:wrap;
+    gap:12px;
+    box-shadow:0 2px 10px rgba(11,36,71,0.25);
+  }
+  .brand{display:flex;align-items:center;gap:10px;}
+  .brand .badge{
+    font-family:var(--font-display);
+    font-weight:700;
+    background:linear-gradient(135deg, var(--brand-blue) 0%, #6ea0ff 100%);
+    color:#fff;
+    border-radius:6px;
+    padding:4px 8px;
+    font-size:13px;
+    letter-spacing:0.5px;
+  }
+  .brand .name{font-family:var(--font-display);font-weight:600;font-size:18px;letter-spacing:0.3px;}
+  .mode-toggle{
+    display:flex;
+    background:rgba(0,0,0,0.25);
+    border-radius:999px;
+    padding:3px;
+    gap:2px;
+  }
+  .mode-toggle button{
+    border:1.5px solid transparent;background:transparent;color:#7e93bd;
+    font-family:var(--font-display);font-weight:600;font-size:13px;
+    padding:8px 16px;border-radius:999px;cursor:pointer;
+    transition:all .15s ease;
+  }
+  .mode-toggle button:hover{color:#fff;}
+  .mode-toggle button.active{
+    background:var(--brand-blue);color:#fff;
+    box-shadow:0 2px 8px rgba(47,111,237,0.45);
+  }
+  #btn-award-shortcut{background:var(--caution-yellow);color:var(--asphalt);font-weight:700;box-shadow:0 2px 8px rgba(255,201,60,0.4);}
+  #btn-award-shortcut:hover{background:#ffcf5e;}
+
+  /* ---- sub nav (route tabs) ---- */
+  .subnav{
+    display:flex;gap:8px;padding:14px 20px;background:var(--concrete);
+    overflow-x:auto;
+  }
+  .subnav button{
+    border:1.5px solid #d2d9e6;background:var(--concrete-2);
+    font-family:var(--font-display);font-weight:600;font-size:13.5px;
+    color:var(--ink-soft);padding:9px 16px;cursor:pointer;
+    border-radius:999px;white-space:nowrap;transition:all .15s ease;
+  }
+  .subnav button:hover{border-color:var(--brand-blue);color:var(--brand-blue);}
+  .subnav button.active{
+    background:var(--brand-blue);border-color:var(--brand-blue);color:#fff;
+    box-shadow:0 2px 8px rgba(47,111,237,0.35);
+  }
+
+  .view{display:none;padding:24px 20px 60px;max-width:980px;margin:0 auto;}
+  .view.active{display:block;}
+
+  /* dashed road-line divider, the signature motif */
+  .laneline{
+    height:0;border-top:3px dashed #d2d9e6;margin:28px 0;position:relative;
+  }
+  .laneline::before{
+    content:'';position:absolute;left:50%;top:-9px;transform:translateX(-50%);
+    background:var(--concrete);color:var(--ink-soft);font-family:var(--font-mono);font-size:11px;
+    padding:0 10px;
+  }
+
+  h1.hero-title{
+    font-family:var(--font-display);font-weight:700;font-size:38px;line-height:1.15;
+    color:var(--asphalt);margin:6px 0 10px;
+  }
+  .hero-sub{color:var(--ink-soft);font-size:15px;max-width:520px;line-height:1.6;margin-bottom:22px;}
+  .hero-box{
+    color:var(--line-white);border-radius:18px;padding:32px;
+    background-image:
+      radial-gradient(circle at 85% 15%, rgba(111,160,255,0.25) 0%, transparent 45%),
+      radial-gradient(circle at 10% 90%, rgba(22,184,118,0.18) 0%, transparent 40%),
+      linear-gradient(160deg, var(--brand-navy) 0%, var(--brand-navy-2) 65%, #1a4a86 100%);
+    position:relative;overflow:hidden;
+  }
+  .hero-box .eyebrow{
+    font-family:var(--font-mono);font-size:12px;color:var(--caution-yellow);
+    letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px;
+  }
+  .hero-box h1{color:#fff;}
+  .hero-box .hero-sub{color:#c9d4e8;}
+  .cta-row{display:flex;gap:10px;flex-wrap:wrap;}
+  .btn{
+    font-family:var(--font-display);font-weight:600;font-size:14px;
+    border:none;border-radius:10px;padding:13px 20px;cursor:pointer;
+    display:inline-flex;align-items:center;gap:8px;transition:transform .1s ease;
+  }
+  .btn:active{transform:scale(0.97);}
+  .btn-primary{background:var(--brand-blue);color:#fff;}
+  .btn-secondary{background:rgba(255,255,255,0.14);color:#fff;border:1px solid rgba(255,255,255,0.3);}
+  .btn-outline{background:transparent;color:var(--brand-navy);border:1.5px solid var(--brand-navy);}
+  .btn-block{width:100%;justify-content:center;}
+
+  .feature-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:26px;}
+  @media(max-width:720px){.feature-grid{grid-template-columns:1fr;}}
+  .feature-card{
+    background:var(--concrete-2);border-radius:var(--radius);padding:18px;
+    border:1px solid #dde3ee;box-shadow:0 2px 8px rgba(11,36,71,0.05);
+  }
+  .feature-card .icon{font-size:22px;margin-bottom:8px;display:block;}
+  .feature-card h3{font-family:var(--font-display);font-size:15px;margin:0 0 6px;}
+  .feature-card p{font-size:13px;color:var(--ink-soft);line-height:1.55;margin:0;}
+
+  .card{
+    background:var(--concrete-2);border-radius:var(--radius);padding:22px;
+    border:1px solid #dde3ee;margin-bottom:16px;box-shadow:0 2px 10px rgba(11,36,71,0.05);
+  }
+  .card h2{
+    font-family:var(--font-display);font-size:19px;margin:0 0 4px;padding-left:12px;
+    border-left:5px solid var(--brand-blue);line-height:1.3;color:var(--brand-navy);
+  }
+  .card .desc{color:var(--ink-soft);font-size:13px;margin-bottom:18px;}
+
+  label{font-size:12.5px;font-weight:700;color:var(--ink-soft);display:block;margin-bottom:6px;letter-spacing:0.2px;}
+  .field{margin-bottom:16px;}
+  input[type=text], textarea, select{
+    width:100%;border:1.5px solid #c9d4e8;border-radius:9px;padding:11px 12px;
+
+    font-family:var(--font-body);font-size:14px;background:#F4F7FC;
+  }
+  textarea{resize:vertical;min-height:80px;}
+
+  .upload-zone{
+    border:2px dashed #a9b4c9;border-radius:12px;padding:26px;text-align:center;
+    background:#e8edf5;cursor:pointer;position:relative;
+  }
+  .upload-zone input{position:absolute;inset:0;opacity:0;cursor:pointer;}
+  .upload-zone .up-icon{font-size:26px;}
+  .upload-zone p{margin:8px 0 0;font-size:13px;color:var(--ink-soft);}
+
+  .ai-result{
+    margin-top:14px;border-radius:10px;padding:14px 16px;background:#f0f8f6;
+    border:1px solid #bfe3db;display:none;
+  }
+  .ai-result.show{display:block;animation:fadein .3s ease;}
+  @keyframes fadein{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:none;}}
+  .ai-result .tag{
+    font-family:var(--font-mono);font-size:11px;background:var(--signal-green);color:#fff;
+    padding:2px 8px;border-radius:999px;margin-right:6px;
+  }
+  .ai-result .conf{font-family:var(--font-mono);font-size:12px;color:var(--signal-green-dark);}
+  .ai-result .coords{margin-top:8px;font-family:var(--font-mono);font-size:12px;color:var(--ink-soft);}
+
+  .spinner{
+    width:14px;height:14px;border:2px solid #cfe7e2;border-top-color:var(--signal-green);
+    border-radius:50%;display:inline-block;animation:spin .7s linear infinite;
+  }
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  /* status pill */
+  .pill{font-family:var(--font-mono);font-size:11px;padding:3px 9px;border-radius:999px;font-weight:700;}
+  .pill.접수{background:#8a5b00;color:#fff;}
+  .pill.배정{background:#b0431a;color:#fff;}
+  .pill.출동{background:#e8543f;color:#fff;}
+  .pill.완료{background:var(--signal-green-dark);color:#fff;}
+  .pill.상{background:var(--danger);color:#fff;font-weight:800;}
+  .pill.중{background:var(--caution-yellow);color:var(--asphalt);}
+  .pill.하{background:var(--signal-green);color:#fff;}
+  .pill.노력{background:#a9b4c9;color:#fff;}
+
+  /* timeline */
+  .timeline{list-style:none;padding:0;margin:0;}
+  .timeline li{
+    position:relative;padding:0 0 26px 34px;
+  }
+  .timeline li::before{
+    content:'';position:absolute;left:6px;top:2px;width:14px;height:14px;border-radius:50%;
+    background:#c9d4e8;border:3px solid var(--concrete-2);box-shadow:0 0 0 1.5px #c9d4e8;
+  }
+  .timeline li.done::before{background:var(--signal-green);box-shadow:0 0 0 1.5px var(--signal-green);}
+  .timeline li:not(:last-child)::after{
+    content:'';position:absolute;left:12px;top:16px;bottom:0;width:2px;background:#c9d4e8;
+  }
+  .timeline li.done:not(:last-child)::after{background:var(--signal-green);}
+  .timeline .t-title{font-family:var(--font-display);font-weight:600;font-size:14.5px;}
+  .timeline .t-time{font-family:var(--font-mono);font-size:11.5px;color:var(--ink-soft);margin-top:2px;}
+  .timeline .t-desc{font-size:13px;color:var(--ink-soft);margin-top:4px;line-height:1.5;}
+
+  #map{height:420px;border-radius:var(--radius) var(--radius) 0 0;border:1px solid #d2d9e6;border-bottom:none;}
+  #routeMap{height:420px;border-radius:var(--radius);border:1px solid #d2d9e6;}
+
+  .leaflet-tooltip.id-tooltip{
+    background:var(--asphalt);color:#fff;font-family:var(--font-mono);font-size:10.5px;font-weight:700;
+    padding:2px 7px;border-radius:6px;border:1.5px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.35);
+    white-space:nowrap;
+  }
+  .leaflet-tooltip.id-tooltip::before{display:none;}
+  .road-pin{background:transparent;border:none;}
+  .map-legend{
+    border:1px solid #d2d9e6;border-top:none;border-radius:0 0 var(--radius) var(--radius);
+    background:var(--concrete-2);padding:14px 16px;display:flex;flex-wrap:wrap;gap:18px;
+  }
+  .legend-group{display:flex;flex-direction:column;gap:7px;}
+  .legend-group .lg-title{font-family:var(--font-mono);font-size:10.5px;color:var(--ink-soft);letter-spacing:0.5px;text-transform:uppercase;margin-bottom:2px;}
+  .legend-row{display:flex;align-items:center;gap:7px;}
+  .legend-row svg{flex-shrink:0;display:block;}
+  .legend-row span{font-size:12.5px;color:var(--ink-soft);}
+  .cat-chip{display:inline-flex;align-items:center;gap:6px;vertical-align:middle;}
+  .cat-chip svg{flex-shrink:0;display:block;}
+
+  /* stat cards */
+  .stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;}
+  @media(max-width:720px){.stat-grid{grid-template-columns:1fr 1fr;}}
+  .stat-card{
+    background:var(--concrete-2);border:1px solid #d2d9e6;border-radius:var(--radius);
+    padding:16px 18px;border-top:4px solid var(--safety-orange);
+    box-shadow:0 2px 6px rgba(11,36,71,0.06);
+  }
+  .stat-card .label{font-size:11.5px;color:var(--ink-soft);font-weight:700;letter-spacing:0.3px;}
+  .stat-card .value{font-family:var(--font-display);font-size:28px;font-weight:700;margin-top:4px;color:var(--asphalt);}
+  .stat-card .value.orange{color:var(--safety-orange);}
+  .stat-card .value.green{color:var(--signal-green-dark);}
+
+  /* 화성e 다모아 스타일 — 통계 카드를 원색 타일로 (남/여/외국인 블록처럼) */
+  .stat-card.tile-navy, .stat-card.tile-orange, .stat-card.tile-green, .stat-card.tile-blue{
+    border-top:none; box-shadow:0 4px 12px rgba(11,36,71,0.16);
+  }
+  .stat-card.tile-navy{background:linear-gradient(135deg, var(--brand-navy) 0%, var(--brand-navy-2) 100%);}
+  .stat-card.tile-orange{background:linear-gradient(135deg, #F5960D 0%, #FFB74D 100%);}
+  .stat-card.tile-green{background:linear-gradient(135deg, #0E8F5C 0%, #16B876 100%);}
+  .stat-card.tile-blue{background:linear-gradient(135deg, #1C4FC0 0%, #2F6FED 100%);}
+  .stat-card.tile-navy .label, .stat-card.tile-orange .label, .stat-card.tile-green .label, .stat-card.tile-blue .label{
+    color:rgba(255,255,255,0.82);
+  }
+  .stat-card.tile-navy .value, .stat-card.tile-orange .value, .stat-card.tile-green .value, .stat-card.tile-blue .value{
+    color:#fff;
+  }
+
+  /* 완료율 등 퍼센트를 도넛 링으로 표시 */
+  .donut-ring{
+    width:64px;height:64px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+    flex-shrink:0;position:relative;
+  }
+  .donut-ring::before{
+    content:'';position:absolute;inset:6px;background:var(--concrete-2);border-radius:50%;
+  }
+  .donut-ring span{position:relative;font-family:var(--font-display);font-weight:700;font-size:14px;color:var(--asphalt);}
+  .donut-ring.sm{width:48px;height:48px;}
+  .donut-ring.sm span{font-size:11px;}
+  .donut-ring.sm::before{inset:5px;}
+
+  .gu-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+  @media(max-width:720px){.gu-grid{grid-template-columns:1fr 1fr;}}
+  .gu-card{background:var(--concrete-2);border:1px solid #d2d9e6;border-radius:11px;overflow:hidden;box-shadow:0 3px 10px rgba(11,36,71,0.08);}
+  .gu-card-head{padding:12px 16px;}
+  .gu-card-head .gu-name{font-family:var(--font-display);font-weight:700;font-size:15px;color:#fff;}
+  .gu-card-head .gu-pop{font-family:var(--font-mono);font-size:10.5px;color:rgba(255,255,255,0.85);margin-top:2px;}
+  .gu-card-body{padding:14px 16px;}
+  .gu-stats-row{display:flex;align-items:center;gap:14px;}
+  .gu-card .gu-stats{flex:1;display:flex;flex-direction:column;gap:6px;}
+  .gu-card .gu-stats div{display:flex;justify-content:space-between;align-items:baseline;}
+  .gu-card .gu-stats .gk{font-size:10.5px;color:var(--ink-soft);font-weight:700;}
+  .gu-card .gu-stats .gv{font-family:var(--font-display);font-size:16px;color:var(--asphalt);}
+  .gu-card .gu-cat-breakdown{margin-top:12px;padding-top:10px;border-top:1px dashed #c9d4e8;}
+  .gu-card .gu-cat-row{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--ink-soft);margin-bottom:5px;}
+  .gu-card .gu-cat-row:last-child{margin-bottom:0;}
+  .gu-card .gu-cat-row svg{flex-shrink:0;}
+  .gu-card .gu-cat-count{margin-left:auto;font-family:var(--font-mono);font-weight:700;color:var(--asphalt);}
+
+  .report-doc{
+    margin-top:16px;background:#F4F7FC;border:1px solid #d2d9e6;border-radius:12px;padding:22px 24px;
+  }
+  .report-doc .rd-header{border-bottom:2px solid var(--asphalt);padding-bottom:12px;margin-bottom:16px;}
+  .report-doc .rd-title{font-family:var(--font-display);font-weight:700;font-size:17px;color:var(--asphalt);}
+  .report-doc .rd-sub{font-family:var(--font-mono);font-size:11.5px;color:var(--ink-soft);margin-top:4px;}
+  .report-doc h4{
+    font-family:var(--font-display);font-size:13px;color:var(--signal-green-dark);
+    margin:18px 0 8px;text-transform:uppercase;letter-spacing:0.3px;
+  }
+  .report-doc h4:first-of-type{margin-top:0;}
+  .report-summary-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:6px;}
+  @media(max-width:720px){.report-summary-grid{grid-template-columns:1fr 1fr;}}
+  .report-summary-grid .rs-item{background:#e8edf5;border-radius:9px;padding:10px 12px;}
+  .report-summary-grid .rs-k{font-size:10.5px;color:var(--ink-soft);font-weight:700;}
+  .report-summary-grid .rs-v{font-family:var(--font-display);font-size:16.5px;margin-top:2px;}
+  .report-summary-grid .rs-v.up{color:var(--danger);}
+  .report-summary-grid .rs-v.down{color:var(--signal-green-dark);}
+  .report-doc table.report-table{width:100%;border-collapse:collapse;font-size:12.5px;margin-bottom:6px;}
+  .report-doc table.report-table th, .report-doc table.report-table td{
+    padding:7px 9px;border-bottom:1px solid #dde3ee;text-align:left;
+  }
+  .report-doc table.report-table th{color:var(--ink-soft);font-family:var(--font-display);font-size:11px;}
+  .report-doc table.report-table td.num{font-family:var(--font-mono);text-align:right;}
+  .report-doc .rd-narrative{font-size:13.5px;line-height:1.7;color:var(--ink);background:#fff7ea;border:1px solid #f3e0b0;border-radius:10px;padding:14px 16px;}
+
+  .dong-group-title{
+    font-family:var(--font-display);font-size:12.5px;font-weight:700;color:var(--signal-green-dark);
+    margin:16px 0 8px;padding-top:12px;border-top:1px dashed #c9d4e8;
+  }
+  .dong-group-title:first-child{margin-top:0;padding-top:0;border-top:none;}
+
+  .dong-group-badge{
+    font-family:var(--font-display);font-size:12.5px;font-weight:700;color:#fff;
+    padding:7px 12px;border-radius:8px;margin:18px 0 10px;display:inline-block;
+  }
+  .dong-group-badge:first-child{margin-top:0;}
+
+  #citizenBoardTable .gu-head-row td{
+    font-family:var(--font-display);font-weight:700;font-size:13px;color:#fff;padding:9px 10px;
+  }
+  #citizenBoardTable .gu-head-row td:not(:first-child){font-family:var(--font-mono);}
+  #citizenBoardTable .gu-dong-row td:first-child{border-left:4px solid var(--gu-color,#a9b4c9);padding-left:10px;}
+  #citizenBoardTable .gu-total-row td{
+    font-family:var(--font-mono);font-weight:700;border-bottom:2px solid #d2d9e6;
+  }
+  #citizenBoardTable .gu-total-row td:first-child{border-left:4px solid var(--gu-color,#a9b4c9);}
+
+  .barrow{display:flex;align-items:center;gap:10px;margin-bottom:10px;font-size:13px;}
+  .barrow .label{width:88px;flex-shrink:0;color:var(--ink-soft);font-weight:600;font-size:12.5px;}
+  .bartrack{flex:1;background:#dde3ee;border-radius:6px;height:10px;overflow:hidden;}
+  .barfill{height:100%;background:var(--signal-green);border-radius:6px;transition:width .3s ease;}
+  .barrow .num{font-family:var(--font-mono);font-size:12.5px;font-weight:700;color:var(--ink-soft);width:32px;text-align:right;}
+  .barrow.gu-barrow{padding-left:10px;border-left:4px solid var(--gu-color,#a9b4c9);}
+
+  table.tasktable{width:100%;border-collapse:collapse;font-size:13.5px;}
+  table.tasktable th{
+    text-align:left;font-family:var(--font-display);font-size:11.5px;color:#fff;
+    padding:9px 10px;background:var(--brand-blue);letter-spacing:0.3px;
+  }
+  table.tasktable th:first-child{border-radius:6px 0 0 6px;}
+  table.tasktable th:last-child{border-radius:0 6px 6px 0;}
+  table.tasktable td{padding:12px 10px;border-bottom:1px solid #dde3ee;vertical-align:top;}
+  table.tasktable tr:hover td{background:#e8edf5;}
+  .route-num{
+    font-family:var(--font-mono);font-weight:700;background:var(--asphalt);color:#fff;
+    width:22px;height:22px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;
+  }
+  .addr-cell{font-size:12.5px;color:var(--ink-soft);margin-top:2px;font-family:var(--font-mono);}
+  .small-btn{
+    font-family:var(--font-display);font-size:12px;font-weight:600;padding:7px 12px;border-radius:8px;
+    border:1.5px solid var(--brand-blue);background:transparent;color:var(--brand-blue);cursor:pointer;
+  }
+  .small-btn:hover{background:var(--brand-blue);color:#fff;}
+
+  table.roadmatrix{border-collapse:collapse;font-size:12.5px;min-width:560px;width:100%;}
+  table.roadmatrix th, table.roadmatrix td{
+    padding:9px 10px;text-align:center;border:1px solid #d2d9e6;white-space:nowrap;
+  }
+  table.roadmatrix thead th{
+    font-family:var(--font-display);font-size:11px;color:var(--ink-soft);
+    background:#e8edf5;font-weight:700;letter-spacing:0.2px;
+  }
+  table.roadmatrix .rm-corner{background:var(--asphalt);color:#fff;font-family:var(--font-display);font-size:10.5px;}
+  table.roadmatrix .rm-donglabel{
+    text-align:left;font-family:var(--font-display);font-weight:600;color:var(--asphalt);
+    background:#e8edf5;
+  }
+  table.roadmatrix .rm-cell{font-family:var(--font-mono);color:var(--asphalt);font-weight:700;}
+  table.roadmatrix .rm-cell.zero{color:#a9b4c9;font-weight:400;background:#F4F7FC;}
+  table.roadmatrix .rm-cell.na{color:#c9d4e8;font-weight:400;background:#e8edf5;}
+  table.roadmatrix .rm-total{
+    font-family:var(--font-mono);font-weight:700;background:#e8edf5;color:var(--asphalt);
+  }
+  .roadmatrix-legend{
+    display:flex;align-items:center;gap:8px;margin-top:12px;font-size:11.5px;color:var(--ink-soft);
+    font-family:var(--font-mono);
+  }
+  .roadmatrix-legend .swatch{width:14px;height:14px;border-radius:3px;border:1px solid #d2d9e6;flex-shrink:0;}
+
+  .modal-backdrop{
+    display:none;position:fixed;inset:0;background:rgba(28,32,35,0.55);z-index:50;
+    align-items:center;justify-content:center;padding:20px;
+  }
+  .modal-backdrop.show{display:flex;}
+  .modal{
+    background:var(--concrete-2);border-radius:16px;padding:26px;max-width:440px;width:100%;
+  }
+  .modal h3{font-family:var(--font-display);margin:0 0 4px;}
+  .modal .close-x{float:right;cursor:pointer;color:var(--ink-soft);font-size:18px;}
+
+  .modal.manage-modal{max-width:600px;max-height:88vh;overflow-y:auto;}
+  .manage-info-grid{
+    display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:4px;
+  }
+  @media(max-width:520px){.manage-info-grid{grid-template-columns:1fr;}}
+  .manage-info-grid .mi-item{background:#e8edf5;border-radius:9px;padding:9px 12px;}
+  .manage-info-grid .mi-k{font-size:10.5px;color:var(--ink-soft);font-weight:700;}
+  .manage-info-grid .mi-v{font-family:var(--font-display);font-size:14px;margin-top:2px;}
+  #manageMiniMap{height:200px;border-radius:12px;border:1px solid #d2d9e6;margin-top:6px;}
+  .manage-photo-grid{
+    display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:6px;
+  }
+  @media(max-width:480px){.manage-photo-grid{grid-template-columns:1fr;}}
+  .manage-photo-box{
+    aspect-ratio:4/3;border-radius:12px;border:1.5px dashed #c9d4e8;background:#e8edf5;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
+    color:var(--ink-soft);position:relative;overflow:hidden;
+  }
+  .manage-photo-box .mp-icon{width:38px;height:38px;opacity:0.85;}
+  .manage-photo-box .mp-label{font-size:11px;font-weight:700;}
+  .manage-photo-box .mp-tag{
+    position:absolute;top:8px;left:8px;font-family:var(--font-mono);font-size:9.5px;
+    background:var(--asphalt);color:#fff;padding:2px 7px;border-radius:999px;
+  }
+  .manage-photo-note{font-size:11px;color:var(--ink-soft);margin-top:6px;line-height:1.5;}
+
+  .report-draft{
+    background:#e8edf5;border-radius:10px;padding:14px;font-size:13px;line-height:1.6;
+    color:var(--ink-soft);margin-top:12px;font-family:var(--font-mono);white-space:pre-wrap;
+  }
+
+  .empty{
+    text-align:center;padding:50px 20px;color:var(--ink-soft);
+  }
+  .empty .big{font-size:32px;display:block;margin-bottom:10px;}
+
+  /* ---- AI insight ---- */
+  .insight-intro .insight-meta{
+    margin-top:14px;padding-top:14px;border-top:1px solid #d2d9e6;
+    font-family:var(--font-mono);font-size:12px;color:var(--ink-soft);
+    display:flex;gap:18px;flex-wrap:wrap;
+  }
+  .insight-meta b{color:var(--asphalt);}
+  .route-efficiency-badge{
+    margin-top:10px;padding:10px 14px;border-radius:10px;display:inline-block;
+    background:rgba(22,184,118,0.12);border:1.5px solid rgba(22,184,118,0.4);
+    color:var(--signal-green-dark);font-weight:700;font-size:13px;
+  }
+  .route-efficiency-detail{font-family:var(--font-mono);font-weight:400;color:var(--ink-soft);margin-left:6px;font-size:11.5px;}
+  .insight-card{
+    background:var(--concrete-2);border:1px solid #d2d9e6;border-radius:var(--radius);
+    padding:20px 22px;margin-bottom:16px;
+  }
+  .insight-head{display:flex;align-items:center;gap:12px;margin-bottom:14px;}
+  .insight-head h3{font-family:var(--font-display);font-size:16.5px;margin:0;}
+  .insight-head .sub{font-size:12px;color:var(--ink-soft);font-family:var(--font-mono);margin-top:2px;}
+  .insight-stats{
+    display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;
+  }
+  @media(max-width:720px){.insight-stats{grid-template-columns:1fr 1fr;}}
+  .insight-stats .istat{
+    background:#e8edf5;border-radius:9px;padding:10px 12px;
+  }
+  .insight-stats .istat .k{font-size:11px;color:var(--ink-soft);font-weight:700;}
+  .insight-stats .istat .v{font-family:var(--font-display);font-size:17px;margin-top:2px;}
+  .risk-row{display:flex;align-items:center;gap:10px;margin-bottom:16px;}
+  .risk-row .risklabel{font-size:12px;font-weight:700;color:var(--ink-soft);width:88px;flex-shrink:0;}
+  .risktrack{flex:1;background:#dde3ee;border-radius:6px;height:10px;overflow:hidden;}
+  .riskfill{height:100%;border-radius:6px;transition:width .5s ease;}
+  .risk-row .risknum{font-family:var(--font-mono);font-size:12px;width:38px;text-align:right;flex-shrink:0;}
+  .insight-block{margin-bottom:12px;}
+  .insight-block .ib-label{
+    font-family:var(--font-mono);font-size:10.5px;letter-spacing:0.5px;text-transform:uppercase;
+    color:var(--signal-green-dark);font-weight:700;margin-bottom:4px;display:flex;align-items:center;gap:6px;
+  }
+  .insight-block p{font-size:13.5px;line-height:1.65;margin:0;color:var(--ink);}
+  .insight-block.reco{
+    background:#fff7ea;border:1px solid #f3e0b0;border-radius:10px;padding:12px 14px;
+  }
+  .insight-block.reco .ib-label{color:#8a5b00;}
+  .thinking-line{
+    display:flex;align-items:center;gap:8px;color:var(--ink-soft);font-size:13px;font-family:var(--font-mono);
+    padding:30px 0;justify-content:center;
+  }
+  .chan-badge{
+    font-family:var(--font-mono);font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:999px;
+    white-space:nowrap;
+  }
+  .channel-filter{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;}
+  .channel-filter button{
+    font-family:var(--font-display);font-size:12px;font-weight:600;
+    border:1.5px solid #c9d4e8;background:#F4F7FC;color:var(--ink-soft);
+    padding:7px 13px;border-radius:999px;cursor:pointer;
+  }
+  .channel-filter button.active{background:var(--asphalt);border-color:var(--asphalt);color:#fff;}
+  .channel-filter.filter-gu button.active{background:var(--signal-green-dark);border-color:var(--signal-green-dark);}
+  .channel-filter.filter-status button.active{background:var(--safety-orange);border-color:var(--safety-orange);}
+  .channel-filter.filter-channel button.active{background:#4a6fa5;border-color:#4a6fa5;}
+
+  .hotspot-row{
+    display:flex;align-items:center;gap:12px;padding:10px 0;
+    border-bottom:1px solid #dde3ee;
+  }
+  .hotspot-row:last-child{border-bottom:none;}
+  .hotspot-rank{
+    font-family:var(--font-mono);font-weight:700;width:24px;height:24px;border-radius:6px;
+    display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;
+    background:var(--asphalt);color:#fff;
+  }
+  .hotspot-rank.r1{background:var(--safety-orange);}
+  .hotspot-dong{font-family:var(--font-display);font-weight:600;font-size:14px;width:74px;flex-shrink:0;}
+  .hotspot-bar-track{flex:1;background:#dde3ee;border-radius:6px;height:10px;overflow:hidden;}
+  .hotspot-bar-fill{height:100%;border-radius:6px;background:var(--safety-orange);}
+  .hotspot-count{font-family:var(--font-mono);font-size:12px;width:34px;text-align:right;flex-shrink:0;color:var(--ink-soft);}
+  .hotspot-topcat{flex-shrink:0;}
+
+  .dong-mini-title{
+    font-family:var(--font-mono);font-size:10.5px;letter-spacing:0.5px;text-transform:uppercase;
+    color:var(--ink-soft);font-weight:700;margin-bottom:8px;
+  }
+  .dong-mini-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
+  .dong-mini-row .dm-label{width:66px;flex-shrink:0;font-size:12.5px;color:var(--ink-soft);font-weight:600;}
+  .dong-mini-row .dm-track{flex:1;background:#dde3ee;border-radius:6px;height:8px;overflow:hidden;}
+  .dong-mini-row .dm-fill{height:100%;border-radius:6px;}
+  .dong-mini-row .dm-num{font-family:var(--font-mono);font-size:11px;width:26px;text-align:right;flex-shrink:0;color:var(--ink-soft);}
+
+  .road-location-callout{
+    margin-top:10px;background:var(--asphalt);color:#fff;border-radius:10px;padding:12px 14px;
+  }
+  .road-location-callout .rl-road{font-family:var(--font-display);font-weight:700;font-size:14px;}
+  .road-location-callout .rl-detail{font-family:var(--font-mono);font-size:11px;color:#c9cdd0;margin:4px 0 10px;}
+  .road-location-callout .small-btn{border-color:#fff;color:#fff;background:transparent;}
+  .road-location-callout .small-btn:hover{background:#fff;color:var(--asphalt);}
+  .insight-inline-map{height:380px;border-radius:10px;overflow:hidden;border:2px solid rgba(255,255,255,0.25);}
+  .road-location-callout .map-legend .lg-title{color:#c9cdd0;}
+  .road-location-callout .map-legend .legend-row span{color:#e8edf5;}
+
+  /* ---- status step bar (접수 → 배정 → 출동 → 등록완료) ---- */
+  .status-stepbar{display:flex;align-items:flex-start;min-width:180px;}
+  .status-stepbar .step{
+    position:relative;flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;
+  }
+  .status-stepbar .step .line{
+    position:absolute;top:5px;right:50%;width:100%;height:2px;background:#c9d4e8;z-index:1;
+  }
+  .status-stepbar .step .line.filled{background:var(--signal-green);}
+  .status-stepbar .step .dot{
+    width:11px;height:11px;border-radius:50%;background:#c9d4e8;z-index:2;
+    border:2px solid var(--concrete-2);
+  }
+  .status-stepbar .step.done .dot{background:var(--signal-green);}
+  .status-stepbar .step.current .dot{
+    width:14px;height:14px;background:var(--safety-orange);
+    box-shadow:0 0 0 3px rgba(255,106,61,0.22);
+  }
+  .status-stepbar .step .label{
+    font-family:var(--font-mono);font-size:10px;color:#8a97ad;white-space:nowrap;
+  }
+  .status-stepbar .step.done .label{color:var(--signal-green-dark);font-weight:700;}
+  .status-stepbar .step.current .label{color:var(--safety-orange);font-weight:700;}
+  .status-stepbar.compact{min-width:150px;}
+  .status-stepbar.compact .label{font-size:9px;}
+  .status-stepbar.compact .dot{width:9px;height:9px;}
+  .status-stepbar.compact .step.current .dot{width:11px;height:11px;}
+</style>
+</head>
+<body>
+
+<div class="browser-chrome">
+  <div class="dots"><span></span><span></span><span></span></div>
+  <div class="addr"><span class="lock">🔒</span><b id="addrbar">roadcare.hscity.go.kr/</b></div>
+</div>
+
+<div class="topnav">
+  <div class="brand">
+    <span class="badge">HS ROAD</span>
+    <span class="name">화성 로드케어</span>
+  </div>
+  <div class="mode-toggle">
+    <button id="btn-citizen" class="active" onclick="setMode('citizen')">로드케어 현황판</button>
+    <button id="btn-admin" onclick="setMode('admin')">기동단·관리자 모드</button>
+    <button id="btn-award-shortcut" onclick="setMode('admin'); setView('a-award');">🏆 우수 시상</button>
+  </div>
+</div>
+
+<div class="subnav" id="citizen-subnav">
+  <button data-view="c-home" class="active" onclick="setView('c-home')">홈</button>
+  <button data-view="c-map" onclick="mapSingleReportId=null; setView('c-map')">우리 동네 안전 지도</button>
+</div>
+
+<div class="subnav" id="admin-subnav" style="display:none;">
+  <button data-view="a-dashboard" class="active" onclick="setView('a-dashboard')">관리자 대시보드</button>
+  <button data-view="a-tasks" onclick="setView('a-tasks')">기동단 민원 현황</button>
+  <button data-view="a-insight" onclick="setView('a-insight')">AI 대응 인사이트</button>
+  <button data-view="a-route" onclick="setView('a-route')">현장 순찰 동선</button>
+</div>
+
+<!-- ============ CITIZEN: HOME ============ -->
+<div class="view active" id="c-home">
+  <div class="hero-box">
+    <div class="eyebrow">교통·도로민원 신속처리 기동단</div>
+    <h1 class="hero-title">화성시 도로 민원,<br>지금 어디까지 처리됐는지 한눈에.</h1>
+    <div class="hero-sub">국민신문고·행정종합관찰관제·도와드림으로 접수된 포트홀, 불법 현수막, 신호등 고장 등 도로 민원의 위치와 처리 현황을 실시간 현황판으로 공개합니다.</div>
+    <div class="cta-row">
+      <button class="btn btn-primary" onclick="mapSingleReportId=null; setView('c-map')">🗺️ 우리 동네 지도·현황판 보기</button>
+    </div>
+  </div>
+
+  <div class="feature-grid">
+    <div class="feature-card">
+      <span class="icon">🧠</span>
+      <h3>AI 자동 분류·배정</h3>
+      <p>접수된 민원을 AI가 유형별로 자동 분류하고 담당 기동단에게 즉시 배정합니다.</p>
+    </div>
+    <div class="feature-card">
+      <span class="icon">📍</span>
+      <h3>실제 위치 표시</h3>
+      <p>민원 발생 위치가 실제 도로 위에 정확히 표시되어 우리 동네 상황을 바로 확인할 수 있습니다.</p>
+    </div>
+    <div class="feature-card">
+      <span class="icon">📊</span>
+      <h3>구청별·동별 현황판</h3>
+      <p>접수 → 배정 → 출동 → 처리 완료까지 전 과정을 구청별·읍면동별 표로 투명하게 공개합니다.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ============ CITIZEN: MAP + 현황판 ============ -->
+<div class="view" id="c-map">
+  <div class="card">
+    <h2>우리 동네 안전 지도</h2>
+    <div class="desc">주변 도로 민원 발생 위치와 처리 현황입니다. (마커 색상 = 처리 단계) · 마커 위치는 실제 도로 위로 자동 보정됩니다.</div>
+    <div id="mapSingleFocusBanner" style="display:none;align-items:center;gap:10px;background:#eaf1ff;border:1px solid #b8d0f0;border-radius:10px;padding:10px 14px;margin-bottom:12px;">
+      <span class="mfb-text" style="font-size:13px;font-weight:700;color:var(--brand-navy);"></span>
+    </div>
+    <div id="map"></div>
+    <div class="map-legend" id="mapLegend"></div>
+  </div>
+
+  <div class="card">
+    <h2>구청별·읍면동별 민원 현황판</h2>
+    <div class="desc">보고 싶은 구청을 선택하면 그 구청 관할 읍면동의 접수·처리중·완료 현황이 표로 나타납니다.</div>
+    <div class="stat-grid" id="citizenCitySummary"></div>
+    <div class="channel-filter filter-gu" id="citizenBoardGuTabs"></div>
+    <div style="overflow-x:auto;">
+      <table class="tasktable" id="citizenBoardTable" style="width:100%;">
+        <thead>
+          <tr><th>읍면동</th><th>접수</th><th>처리중</th><th>완료</th><th>완료율</th></tr>
+        </thead>
+        <tbody id="citizenBoardBody"></tbody>
+      </table>
+    </div>
+    <div class="roadmatrix-legend" style="margin-top:10px;">
+      <span class="swatch" style="background:#2a9d8f;"></span>만세구청
+      <span class="swatch" style="background:#4a6fa5;"></span>효행구청
+      <span class="swatch" style="background:#e0a635;"></span>병점구청
+      <span class="swatch" style="background:#9b59b6;"></span>동탄구청
+    </div>
+  </div>
+</div>
+
+
+<!-- ============ ADMIN: DASHBOARD ============ -->
+<div class="view" id="a-dashboard">
+  <div class="stat-grid">
+    <div class="stat-card tile-navy"><div class="label">총 접수 민원</div><div class="value" id="statTotal">-</div></div>
+    <div class="stat-card tile-orange"><div class="label">처리중</div><div class="value" id="statProgress">-</div></div>
+    <div class="stat-card tile-green"><div class="label">처리 완료</div><div class="value" id="statDone">-</div></div>
+    <div class="stat-card tile-blue"><div class="label">평균 처리시간</div><div class="value" id="statAvg">-</div></div>
+  </div>
+
+  <div class="card">
+    <h2>민원분석 보고서</h2>
+    <div class="desc">기간을 선택하고 버튼을 누르면 접수된 민원을 AI가 분석해 월별·분기별 보고서를 자동으로 작성합니다.</div>
+    <div class="channel-filter" id="reportTypeTabs"></div>
+    <div class="channel-filter" id="reportPeriodTabs"></div>
+    <button class="btn btn-primary" onclick="generateComplaintReport()" style="margin-top:4px;">📄 AI 분석 보고서 생성</button>
+    <div id="reportOutput"></div>
+  </div>
+
+  <div class="card">
+    <h2>구청별 현황 <span id="guCardsPeriodLabel" style="font-family:var(--font-mono);font-size:12px;color:var(--brand-blue);font-weight:700;"></span></h2>
+    <div class="desc">화성시 4개 구청(만세·효행·병점·동탄) 관할 기준 민원 현황입니다. 아래 "민원분석 보고서"에서 월/분기를 선택하면 이 카드도 그 기간 기준으로 함께 바뀝니다.</div>
+    <div class="gu-grid" id="guCards"></div>
+  </div>
+
+  <div class="card">
+    <h2>민원접수 통로별 현황</h2>
+    <div class="desc">국민신문고·행정종합관찰관제·도와드림으로 들어온 민원을 한 화면에서 통합 관리합니다.</div>
+    <div id="channelBars"></div>
+  </div>
+
+  <div class="card">
+    <h2>읍면동별 민원 현황</h2>
+    <div class="desc">구청을 선택하면 소속 읍면동의 처리율을 막대로 보여줍니다. (완료율이 높을수록 색이 진해집니다)</div>
+    <div class="channel-filter filter-gu" id="dongBarsGuTabs"></div>
+    <div id="dongBars"></div>
+  </div>
+
+  <div class="card">
+    <h2>읍면동별 · 도로 등급별 현황</h2>
+    <div class="desc">구청 → 읍면동을 선택하면 세로축(국도·지방도·시도·농어촌도로·도시계획도로·이면도로)과 가로축(노선번호, 예: 시도57호선)으로 교차 분석합니다. 도로번호는 우리 동네 안전 지도에 표시되는 번호와 동일합니다.</div>
+    <div class="channel-filter" id="matrixGuTabs"></div>
+    <div class="channel-filter" id="matrixDongTabs"></div>
+    <div style="overflow-x:auto;">
+      <table class="roadmatrix" id="roadMatrixTable"></table>
+    </div>
+    <div class="roadmatrix-legend">
+      <span class="swatch" style="background:rgba(42,157,143,0.12);"></span>낮음
+      <span class="swatch" style="background:rgba(42,157,143,0.4);"></span>보통
+      <span class="swatch" style="background:rgba(42,157,143,0.67);"></span>높음
+      <span style="margin-left:10px;">· '-'는 해당 등급에 없는 노선번호 조합입니다</span>
+    </div>
+  </div>
+</div>
+
+<!-- ============ ADMIN: TASKS ============ -->
+<div class="view" id="a-tasks">
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
+      <h2>기동단 민원 현황</h2>
+      <button class="btn btn-outline" onclick="downloadTaskViewCSV()" title="현재 조회된 목록을 엑셀(CSV)로 다운로드" style="padding:8px 14px;font-size:13px;">
+        📥 엑셀 다운로드
+      </button>
+    </div>
+    <div class="desc">구청별로 소속 기동단 민원만 따로 볼 수 있습니다. AI 스마트 스코어링으로 긴급도를 평가하고, 최단 출동 경로 순서(①②③...)를 자동 부여했습니다.</div>
+    <div class="channel-filter filter-gu" id="taskGuFilter"></div>
+    <div class="channel-filter filter-status" id="taskStatusFilter"></div>
+    <div class="channel-filter filter-channel" id="taskChannelFilter"></div>
+    <div style="overflow-x:auto;">
+    <table class="tasktable">
+      <thead>
+        <tr><th>순번</th><th>민원</th><th>긴급도</th><th>상태</th><th></th></tr>
+      </thead>
+      <tbody id="taskBody"></tbody>
+    </table>
+    </div>
+  </div>
+</div>
+
+<!-- ============ ADMIN: AI INSIGHT ============ -->
+<div class="view" id="a-insight">
+  <div class="card insight-intro">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap;">
+      <div>
+        <h2>AI 대응 인사이트</h2>
+        <div class="desc" style="margin-bottom:0;">누적 접수 데이터를 민원 유형별로 학습해 재발 원인을 추정하고, 향후 예방·대응 방안을 제안합니다.</div>
+      </div>
+      <button class="btn btn-outline" onclick="runInsightAnalysis()" id="rerunBtn">🔄 AI 재추론 실행</button>
+    </div>
+    <div class="insight-meta" id="insightMeta"></div>
+  </div>
+
+  <div class="card">
+    <h2>📍 전체 민원 다발 지역</h2>
+    <div class="desc">읍면동 단위로 전체 민원을 집계해, 어느 지역에서 어떤 유형이 가장 많이 발생하는지 추론합니다.</div>
+    <div id="hotspotList"></div>
+  </div>
+
+  <div class="channel-filter" id="insightCategoryTabs"></div>
+  <div id="insightCards"></div>
+</div>
+
+<!-- ============ ADMIN: 우수민원인 시상 ============ -->
+<div class="view" id="a-award">
+  <div class="card">
+    <h2>민원 접수 현황 다운로드</h2>
+    <div class="desc">현재까지 접수된 전체 민원 데이터를 CSV 파일로 내려받습니다. (접수번호·채널·민원인·유형·지역·도로·상태 등 포함, 엑셀에서 바로 열람 가능)</div>
+    <button class="btn btn-primary" onclick="downloadComplaintsCSV()">⬇️ 민원 접수 현황 다운로드(CSV)</button>
+  </div>
+
+  <div class="card">
+    <h2 id="awardPeriodTitle">2026년 우수 시상 후보</h2>
+    <div class="desc">시민 부문(우수민원인)과 공무원 부문(우수직원)을 나눠서 확인할 수 있습니다. 시상은 1년에 두 번(상반기·하반기) 진행됩니다.</div>
+    <div class="channel-filter" id="awardHalfTabs"></div>
+    <div class="channel-filter" id="awardTypeTabs"></div>
+
+    <div id="award-citizen-section">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap;margin-top:10px;">
+        <div>
+          <h3 style="font-family:var(--font-display);font-size:15px;margin:0 0 4px;">🧑 우수민원인 시상 후보</h3>
+          <div class="desc" style="margin-bottom:0;">시민이 직접 제출한 민원(도와드림·국민신문고)을 대상으로, 제출 건수·처리 기여도·긴급민원 발굴 등을 종합해 총점을 산정합니다.</div>
+        </div>
+        <button class="btn btn-outline" onclick="renderAwardRanking()">🔄 총점 다시 계산</button>
+      </div>
+      <div id="awardMeta" class="insight-meta"></div>
+      <div style="overflow-x:auto;">
+        <table class="tasktable" id="awardTable">
+          <thead>
+            <tr><th>순위</th><th>민원인</th><th>제출건수</th><th>총점</th><th>산정 근거</th></tr>
+          </thead>
+          <tbody id="awardBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="award-staff-section" style="display:none;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap;margin-top:10px;">
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+          <h3 style="font-family:var(--font-display);font-size:15px;margin:0;">👮 우수직원 시상 후보</h3>
+          <div class="channel-filter" id="staffAwardKindTabs" style="margin-bottom:0;"></div>
+        </div>
+        <button class="btn btn-outline" onclick="renderStaffAwardRanking()">🔄 총점 다시 계산</button>
+      </div>
+      <div class="desc">「2026년 행정종합관찰제 생활불편 도와드림 QR 인센티브 평가지표」 기준으로, 행정종합관찰제 관찰(등록)·처리 개인별 누적건수 상위자를 관찰 우수·처리 우수로 각각 산정합니다. 관찰·처리 각 30건 이상인 6급 이하 공무원이 대상이며, 두 부문에 동시 선정되면 더 높은 등급 1개만 인정됩니다.</div>
+      <div id="staffAwardMeta" class="insight-meta"></div>
+      <div style="overflow-x:auto;">
+        <table class="tasktable" id="staffAwardTable">
+          <thead>
+            <tr><th>훈격</th><th>담당직원</th><th>건수</th><th>부상(인센티브)</th><th>비고</th></tr>
+          </thead>
+          <tbody id="staffAwardBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ ADMIN: 현장 순찰 동선 ============ -->
+<div class="view" id="a-route">
+  <div class="card">
+    <h2>현장 순찰 동선(포트홀, 불법 현수막, 가로등)</h2>
+    <div class="desc">구청 → 읍면동을 선택하면, 아직 처리되지 않은 해당 유형 민원들을 AI가 최단 이동 경로 순서로 정렬해 지도에 표시합니다. 담당 공무원은 이 순서대로 순찰·보수하면 됩니다. (신호등 고장은 교통행정과 별도 정비 소관이라 제외)</div>
+    <div class="channel-filter" id="routeGuTabs"></div>
+    <div class="channel-filter" id="routeDongTabs"></div>
+    <div class="channel-filter" id="routeModeTabs"></div>
+    <button class="btn btn-primary" onclick="generateRoute()" style="margin-top:4px;">🧭 AI 최적 동선 분석</button>
+    <div id="routeMeta" class="insight-meta"></div>
+  </div>
+
+  <div class="card">
+    <div id="routeMap"></div>
+    <div class="roadmatrix-legend" style="margin-top:10px;">
+      <span class="swatch" style="background:#e8543f;"></span>포트홀
+      <span class="swatch" style="background:#4a6fa5;"></span>불법 현수막
+      <span class="swatch" style="background:#e0a635;"></span>가로등 미점등
+      <span style="margin-left:10px;">· 숫자는 방문 순서입니다</span>
+    </div>
+    <div style="overflow-x:auto;">
+      <table class="tasktable" id="routeStopTable" style="margin-top:14px;">
+        <thead>
+          <tr><th>순번</th><th>유형</th><th>위치</th><th>접수번호</th><th>우선순위</th><th>이전 지점부터 거리</th></tr>
+        </thead>
+        <tbody id="routeStopBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ============ COMPLETE MODAL ============ -->
+<div class="modal-backdrop" id="manageModal">
+  <div class="modal manage-modal">
+    <span class="close-x" onclick="closeManageModal()">✕</span>
+    <h3>민원 관리카드</h3>
+    <div class="desc" style="margin-bottom:14px;color:var(--ink-soft);font-size:13px;" id="manageTarget"></div>
+
+    <div id="manageStatusBar" style="margin-bottom:16px;"></div>
+
+    <div class="manage-info-grid" id="manageInfoGrid"></div>
+
+    <label style="margin-top:16px;display:block;">위치도</label>
+    <div id="manageMiniMap"></div>
+
+    <label style="margin-top:16px;display:block;">현장 사진</label>
+    <div class="manage-photo-grid" id="managePhotoGrid"></div>
+
+    <div id="manageReportBlock"></div>
+
+    <div id="manageActionRow" style="margin-top:16px;"></div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="statusInputModal">
+  <div class="modal">
+    <span class="close-x" onclick="closeStatusInputModal()">✕</span>
+    <h3 id="statusInputTitle">배정 등록</h3>
+    <div class="desc" style="margin-bottom:14px;color:var(--ink-soft);font-size:13px;" id="statusInputTarget"></div>
+    <div class="field">
+      <label>담당 부서명</label>
+      <input type="text" id="statusInputDept" placeholder="예) 도로관리과 1팀">
+    </div>
+    <div class="field" id="statusInputStaffField" style="display:none;">
+      <label>출동 담당자</label>
+      <input type="text" id="statusInputStaff" placeholder="예) 김도로 주무관">
+    </div>
+    <button class="btn btn-primary btn-block" onclick="confirmStatusInput()" id="statusInputConfirmBtn">배정 등록</button>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="completeModal">
+  <div class="modal">
+    <span class="close-x" onclick="closeModal()">✕</span>
+    <h3>현장 처리 완료 등록</h3>
+    <div class="desc" style="margin-bottom:14px;color:var(--ink-soft);font-size:13px;" id="modalTarget"></div>
+    <label>처리 후 사진</label>
+    <div class="upload-zone" style="margin-bottom:14px;">
+      <input type="file" accept="image/*" onchange="this.parentElement.querySelector('p').innerText='사진 업로드 완료 ✓'">
+      <span class="up-icon">📷</span>
+      <p>완료 사진을 올려주세요</p>
+    </div>
+    <button class="btn btn-primary btn-block" onclick="completeTask()">완료 처리 & AI 보고서 생성</button>
+    <div class="report-draft" id="reportDraft" style="display:none;"></div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+/* ---------------- state ---------------- */
+/* ---------------- 화성시 구청 및 읍면동 현황 (2026년 5월 말 기준) ----------------
+   화성시는 만세구청·효행구청·병점구청·동탄구청 4개 구청 체제로 운영되며,
+   각 구청이 관할하는 읍면동과 인구(내국인/외국인)는 아래와 같습니다.
+   지도 표시용 좌표는 각 구청 관할 권역의 대략적인 위치에 임의로 배치한 값입니다. */
+const GU_DONGS = {
+  '만세구청': ['향남읍','남양읍','새솔동','우정읍','장안면','팔탄면','송산면','마도면','서신면','양감면'],
+  '효행구청': ['봉담읍','비봉면','기배동','정남면','매송면'],
+  '병점구청': ['진안동','반월동','병점1동','화산동','병점2동'],
+  '동탄구청': ['동탄1동','동탄2동','동탄3동','동탄4동','동탄5동','동탄6동','동탄7동','동탄8동','동탄9동']
+};
+const GU_LIST = Object.keys(GU_DONGS);
+
+/* 구청별 대표 색상 - 로드케어 현황판 표에서 구청 구간을 색으로 구분하기 위해 사용 */
+const GU_COLOR = {
+  '만세구청': '#2a9d8f',
+  '효행구청': '#4a6fa5',
+  '병점구청': '#e0a635',
+  '동탄구청': '#9b59b6'
+};
+
+const DONG_POPULATION = {
+  '향남읍':{total:101863,domestic:84704,foreign:17079}, '남양읍':{total:67528,domestic:60444,foreign:7084},
+  '새솔동':{total:27336,domestic:27057,foreign:279}, '우정읍':{total:21528,domestic:16593,foreign:4935},
+  '장안면':{total:15273,domestic:9222,foreign:6051}, '팔탄면':{total:15082,domestic:9163,foreign:5919},
+  '송산면':{total:12450,domestic:10170,foreign:2280}, '마도면':{total:10003,domestic:6400,foreign:3603},
+  '서신면':{total:8926,domestic:6900,foreign:1946}, '양감면':{total:6632,domestic:3669,foreign:2963},
+  '봉담읍':{total:116342,domestic:112251,foreign:4091}, '비봉면':{total:17457,domestic:16490,foreign:967},
+  '기배동':{total:15900,domestic:15400,foreign:500}, '정남면':{total:13344,domestic:10097,foreign:3247},
+  '매송면':{total:6364,domestic:6163,foreign:201},
+  '진안동':{total:52260,domestic:50221,foreign:2039}, '반월동':{total:37695,domestic:37268,foreign:427},
+  '병점1동':{total:37094,domestic:36248,foreign:846}, '화산동':{total:30300,domestic:29004,foreign:1224},
+  '병점2동':{total:22350,domestic:21973,foreign:385},
+  '동탄9동':{total:60561,domestic:60133,foreign:428}, '동탄7동':{total:57841,domestic:57365,foreign:476},
+  '동탄4동':{total:52857,domestic:52618,foreign:239}, '동탄1동':{total:50032,domestic:49944,foreign:888},
+  '동탄5동':{total:48523,domestic:47852,foreign:671}, '동탄6동':{total:47765,domestic:46875,foreign:890},
+  '동탄8동':{total:40789,domestic:40509,foreign:280}, '동탄3동':{total:40293,domestic:39932,foreign:361},
+  '동탄2동':{total:34064,domestic:33761,foreign:303}
+};
+
+const DONG_TO_GU = {};
+GU_LIST.forEach(gu => GU_DONGS[gu].forEach(d => { DONG_TO_GU[d] = gu; }));
+const DONGS = GU_LIST.flatMap(gu => GU_DONGS[gu]);
+
+/* 구청(청사) 위치 - 사용자 제공 좌표 자료(좌표.pdf) 기준.
+   현장 순찰 동선의 출발점(depot)으로 사용됩니다. */
+const GU_ZONE_CENTER = {
+  '만세구청': [37.13622, 126.92478],  // 화성종합경기타운 인근 (네이버지도 실측 좌표)
+  '효행구청': [37.20908, 126.95928],  // 봉담읍 분천리 (네이버지도 실측 좌표)
+  '병점구청': [37.20875, 127.03598],  // 병점동 (네이버지도 실측 좌표)
+  '동탄구청': [37.19723, 127.09672]  // 동탄역(SRT) 인근 (네이버지도 실측 좌표)
+};
+
+/* 각 읍면동 행정복지센터 위치 - 사용자 제공 좌표 자료(좌표.pdf) 기준 실측 좌표. */
+const DONG_COORDS = {
+  // 만세구청
+  '향남읍': [37.13245, 126.92033],  // 향남읍 행정복지센터 (네이버지도 실측 좌표)
+  '남양읍': [37.193, 126.82132],  // 남양읍 행정복지센터 (네이버지도 실측 좌표)
+  '새솔동': [37.28131, 126.81874],  // 새솔동 행정복지센터 (네이버지도 실측 좌표)
+  '우정읍': [37.08987, 126.81543],  // 우정읍 행정복지센터 (네이버지도 실측 좌표)
+  '장안면': [37.07972, 126.83133],  // 장안면 행정복지센터 (네이버지도 실측 좌표)
+  '팔탄면': [37.1621, 126.90478],  // 팔탄면 행정복지센터 (네이버지도 실측 좌표)
+  '송산면': [37.2179, 126.73913],  // 송산면 행정복지센터 (네이버지도 실측 좌표)
+  '마도면': [37.20554, 126.76964],  // 마도면 행정복지센터 (네이버지도 실측 좌표)
+  '서신면': [37.16653, 126.70878],  // 서신면 행정복지센터 (네이버지도 실측 좌표)
+  '양감면': [37.08168, 126.9451],  // 양감면 행정복지센터 (네이버지도 실측 좌표)
+  // 효행구청
+  '봉담읍': [37.22, 126.94998],  // 봉담읍 행정복지센터 (네이버지도 실측 좌표)
+  '비봉면': [37.23532, 126.87342],  // 비봉면 행정복지센터 (네이버지도 실측 좌표)
+  '기배동': [37.22429, 126.98463],  // 기배동 행정복지센터 (네이버지도 실측 좌표)
+  '정남면': [37.16041, 126.97109],  // 정남면 행정복지센터 (네이버지도 실측 좌표)
+  '매송면': [37.25231, 126.9091],  // 매송면 행정복지센터 (네이버지도 실측 좌표)
+  // 병점구청
+  '진안동': [37.21336, 127.03499],  // 진안동 행정복지센터 (네이버지도 실측 좌표)
+  '반월동': [37.23311, 127.0606],  // 반월동 행정복지센터 (네이버지도 실측 좌표)
+  '병점1동': [37.20682, 127.03719],  // 병점1동 행정복지센터 (네이버지도 실측 좌표)
+  '화산동': [37.20615, 127.01485],  // 화산동 행정복지센터 (네이버지도 실측 좌표)
+  '병점2동': [37.2115, 127.04301],  // 병점2동 행정복지센터 (네이버지도 실측 좌표)
+  // 동탄구청
+  '동탄1동': [37.2065, 127.0721],
+  '동탄2동': [37.19689, 127.07227],  // 동탄2동 행정복지센터 (네이버지도 실측 좌표)
+  '동탄3동': [37.20997, 127.0587],  // 동탄3동 행정복지센터 (네이버지도 실측 좌표)
+  '동탄4동': [37.19976, 127.11234],  // 동탄4동 행정복지센터 (네이버지도 실측 좌표)
+  '동탄5동': [37.21025, 127.10398],  // 동탄5동 행정복지센터 (네이버지도 실측 좌표)
+  '동탄6동': [37.19135, 127.08991],  // 동탄6동 행정복지센터 (네이버지도 실측 좌표)
+  '동탄7동': [37.17045, 127.11008],  // 동탄7동 행정복지센터 (네이버지도 실측 좌표)
+  '동탄8동': [37.16233, 127.10528],  // 동탄8동 행정복지센터 (네이버지도 실측 좌표)
+  '동탄9동': [37.1808, 127.13853]  // 동탄9동 행정복지센터 (네이버지도 실측 좌표)
+};
+
+const HS_CENTER = [37.185, 126.94]; // 화성시 전역 지도 표시 기준(대략 중앙)
+/* 민원분석 보고서용 기간 정의: 오늘 기준(2026년 7월 13일) 아직 발생하지 않은
+   8~12월도 조회는 가능하도록 전체 12개월·4개 분기를 선택지로 제공합니다. */
+const CURRENT_MONTH = 7;
+const CURRENT_DAY = 13;
+const MONTH_LIST = [1,2,3,4,5,6,7,8,9,10,11,12];
+const QUARTER_LIST = [1,2,3,4];
+function quarterOf(month){ return Math.ceil(month/3); }
+function quarterMonths(q){ return MONTH_LIST.filter(m=>quarterOf(m)===q); }
+
+const CATEGORIES = [
+  {name:'포트홀', tag:'도로파손', dept:'도로관리과'},
+  {name:'불법 현수막', tag:'불법광고물', dept:'환경정비과'},
+  {name:'신호등 고장', tag:'교통시설', dept:'교통행정과'},
+  {name:'가로등 미점등', tag:'시설물파손', dept:'도로관리과'}
+];
+
+/* 현장 보수·철거 순찰 동선 대상 유형: 포트홀 보수, 불법 현수막 철거, 가로등 미점등 보수.
+   (신호등 고장은 교통행정과 전문 정비 소관이라 이 순찰 동선에서는 제외) */
+const ROUTE_CATEGORIES = ['포트홀','불법 현수막','가로등 미점등'];
+const ROUTE_CATEGORY_COLOR = {'포트홀':'#e8543f','불법 현수막':'#4a6fa5','가로등 미점등':'#e0a635'};
+
+/* 도로 등급 구분: 국도·지방도·시도·농어촌도로·도시계획도로·이면도로
+   읍면동별로 어느 등급의 도로에서 민원이 집중되는지 교차 분석에 사용합니다. */
+const ROAD_TYPES = ['국도','지방도','시도','농어촌도로','도시계획도로','이면도로'];
+
+/* 등급별 실제 노선번호 풀 (우리 동네 안전 지도에 표시되는 도로 번호와 동일하게 사용).
+   도시계획도로·이면도로는 별도 노선번호 체계가 없어 등급명 그대로 표기합니다. */
+const ROAD_NUMBER_POOL = {
+  '국도': ['43호선','82호선'],
+  '지방도': ['302호선','309호선'],
+  '시도': ['12호선','57호선','101호선'],
+  '농어촌도로': ['8호','15호','23호'],
+  '도시계획도로': ['도시계획도로'],
+  '이면도로': ['이면도로']
+};
+function pickRoadNumber(roadType){
+  const pool = ROAD_NUMBER_POOL[roadType];
+  return pool[Math.floor(Math.random()*pool.length)];
+}
+/* 도로 등급 + 노선번호를 합친 표시용 라벨. 예) 시도57호선, 국도43호선 */
+function roadLabel(r){
+  if(r.roadType==='도시계획도로' || r.roadType==='이면도로') return r.roadType;
+  return r.roadType + r.roadNumber;
+}
+/* 매트릭스 가로축(컬럼) 고정 목록: 등급별 노선번호를 순서대로 나열 */
+const ROAD_COLUMNS = ROAD_TYPES.flatMap(rt =>
+  ROAD_NUMBER_POOL[rt].map(num => ({grade:rt, number:num}))
+);
+
+/* ---------------- 민원접수 통로(채널) ----------------
+   국민신문고, 행정종합관찰관제, 도와드림 3개 채널로
+   들어오는 민원을 한 화면에서 통합 관리합니다. */
+const CHANNELS = {
+  '국민신문고': {short:'국민신문고', code:'KMG', color:'#4a6fa5', desc:'국민신문고 연계 접수'},
+  '행정종합관찰관제': {short:'행정종합관찰관제', code:'MON', color:'#b0431a', desc:'담당 공무원이 행정종합관찰관제(CCTV·모니터링)로 현장을 점검해 직접 등록'},
+  '도와드림': {short:'도와드림', code:'DWD', color:'#2a9d8f', desc:'화성시 도와드림 서비스를 통한 시민 접수'}
+};
+const CHANNEL_LIST = Object.keys(CHANNELS);
+
+function channelBadge(channel){
+  const c = CHANNELS[channel] || CHANNELS['국민신문고'];
+  return `<span class="chan-badge" style="background:${c.color};color:#fff;">${c.short}</span>`;
+}
+
+/* 접수채널별 고유 접수번호 체계: {채널명 앞 2글자}-{접수일자 YYYYMMDD}-{채널별 일련번호}
+   예) 국민신문고 → 국민-20260713-0001, 행정종합관찰관제 → 행정-20260713-0001,
+       도와드림 → 도와-20260713-0001
+   채널마다 별도의 일련번호를 가져, 서로 다른 접수경로가 섞여도 번호만 보고 어느 통로로 들어온 민원인지 바로 식별됩니다. */
+const channelSeq = {'국민신문고':0, '행정종합관찰관제':0, '도와드림':0};
+function nextChannelId(channel, month, day){
+  channelSeq[channel]++;
+  const prefix = channel.slice(0,2); // 채널명 앞 두 글자를 코드로 사용
+  const mm = String(month).padStart(2,'0');
+  const dd = String(day).padStart(2,'0');
+  return `${prefix}-2026${mm}${dd}-${String(channelSeq[channel]).padStart(4,'0')}`;
+}
+
+let reports = [];
+/* 우수직원 시상(관찰/처리 우수) 데모 전용으로 생성된 대량의 합성 데이터는 실제 "접수된 민원"이
+   아니므로, 지도·대시보드·현황판 등 시민/전체 통계 화면에는 노출하지 않습니다.
+   (우수 시상 랭킹 계산 함수들은 이 필터를 거치지 않고 reports 원본을 그대로 사용합니다) */
+function displayableReports(){
+  return reports.filter(r=>!r.awardOnly);
+}
+let currentPhotoAnalysis = null;
+let map, markersLayer;
+let mapMarkers = {};
+let pendingMapFocusId = null;
+
+/* 우수민원인 시상용 제출자 정보: 시민이 직접 제출하는 채널(국민신문고·도와드림)에만
+   민원인을 배정합니다. 행정종합관찰관제는 담당 공무원이 직접 등록하는 건이라 별도의
+   '우수 직원 시상' 집계 대상(staff 필드)으로 분리하고, 우수민원인 집계에서는 제외합니다. */
+const SUBMITTER_NAMES = ['김민준','이서연','박도윤','최지우','정하은','강시우','조유나','윤지호','임소율','한도현','오세아','배지훈'];
+function pickSubmitter(channel){
+  if(channel==='국민신문고' || channel==='도와드림'){
+    return SUBMITTER_NAMES[Math.floor(Math.random()*SUBMITTER_NAMES.length)];
+  }
+  return null;
+}
+
+/* 우수 직원 시상용 담당 공무원 풀: 행정종합관찰관제로 현장을 점검·등록한 직원을 배정.
+   실제 조직처럼 상위 몇 명에게 실적이 집중되는 경향을 반영해 가중치를 둡니다
+   (박순찰·오민생을 우선 배정 비중을 높여, 30건 이상 기준 충족자가 자연스럽게 발생하도록 함). */
+const EMPLOYEE_NAMES = ['김도로','박순찰','이점검','정현장','최안전','오민생','장보수','한기동','서지킴','윤단속','임현장','조안심','신도로','배순찰','나순찰','권지킴','우도로'];
+const EMPLOYEE_WEIGHTED_POOL = [
+  ...Array(6).fill('박순찰'), ...Array(5).fill('오민생'),
+  ...EMPLOYEE_NAMES.filter(n=>n!=='박순찰' && n!=='오민생')
+];
+function pickStaffSubmitter(channel){
+  if(channel==='행정종합관찰관제'){
+    return EMPLOYEE_WEIGHTED_POOL[Math.floor(Math.random()*EMPLOYEE_WEIGHTED_POOL.length)];
+  }
+  return null;
+}
+
+/* ---------------- category icon glyphs ----------------
+   Each glyph is drawn in local coords centered around (17,16),
+   fitting inside both the 34x42 map pin and the 34x34 chip badge. */
+const CATEGORY_META = {
+  '포트홀': {
+    label:'포트홀 (도로파손)',
+    glyph:`<circle cx="17" cy="16" r="7.2" fill="none" stroke="#fff" stroke-width="1.7" stroke-dasharray="2.6 2.4"/>
+           <circle cx="17" cy="16" r="2.6" fill="#fff"/>`
+  },
+  '불법 현수막': {
+    label:'불법 현수막',
+    glyph:`<line x1="12" y1="9" x2="12" y2="23" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/>
+           <path d="M12 10 L24 13.2 L12 16.4 Z" fill="#fff"/>`
+  },
+  '신호등 고장': {
+    label:'신호등 고장',
+    glyph:`<rect x="12.3" y="7.5" width="9.4" height="17" rx="2.6" fill="#fff"/>
+           <circle cx="17" cy="12" r="1.7" fill="#16233F"/>
+           <circle cx="17" cy="16" r="1.7" fill="#16233F"/>
+           <circle cx="17" cy="20" r="1.7" fill="#16233F"/>
+           <line x1="9.5" y1="6.5" x2="24.5" y2="25.5" stroke="#e8543f" stroke-width="2.2" stroke-linecap="round"/>`
+  },
+  '가로등 미점등': {
+    label:'가로등 미점등',
+    glyph:`<line x1="17" y1="11.5" x2="17" y2="24" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/>
+           <line x1="13" y1="24" x2="21" y2="24" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/>
+           <circle cx="17" cy="9" r="3.3" fill="none" stroke="#fff" stroke-width="1.7"/>
+           <line x1="14.3" y1="6.3" x2="19.7" y2="11.7" stroke="#e8543f" stroke-width="1.7" stroke-linecap="round"/>`
+  }
+};
+const STATUS_COLORS = {'접수':'#8a5b00','배정':'#b0431a','출동':'#e8543f','완료':'#2a9d8f'};
+const STATUS_LABELS = {'접수':'접수됨','배정':'기동단 배정','출동':'현장 출동중','완료':'처리 완료'};
+const STATUS_ORDER = ['접수','배정','출동','완료'];
+const STATUS_STEP_LABELS = {'접수':'접수','배정':'배정','출동':'출동','완료':'등록완료'};
+
+/* 상태를 접수→배정→출동→등록완료 순서의 가로 바(스텝바) 형태로 표시 */
+function statusStepBar(status, compact){
+  const idx = STATUS_ORDER.indexOf(status);
+  const stepsHtml = STATUS_ORDER.map((s,i)=>{
+    let cls = 'upcoming';
+    if(i < idx) cls = 'done';
+    else if(i === idx) cls = 'current';
+    return `<div class="step ${cls}">
+      ${i>0 ? `<div class="line ${i<=idx?'filled':''}"></div>` : ''}
+      <div class="dot"></div>
+      <div class="label">${STATUS_STEP_LABELS[s]}</div>
+    </div>`;
+  }).join('');
+  return `<div class="status-stepbar${compact?' compact':''}">${stepsHtml}</div>`;
+}
+
+function categoryGlyph(category){
+  return (CATEGORY_META[category] || CATEGORY_META['포트홀']).glyph;
+}
+
+// full map pin: teardrop shape colored by status, glyph shows complaint type
+function pinSVG(category, colorHex){
+  return `<svg width="34" height="42" viewBox="0 0 34 42" xmlns="http://www.w3.org/2000/svg" style="filter:drop-shadow(0 2px 3px rgba(0,0,0,0.35))">
+    <path d="M17 0C7.6 0 0 7.6 0 17c0 12 17 25 17 25s17-13 17-25C34 7.6 26.4 0 17 0z" fill="${colorHex}"/>
+    <circle cx="17" cy="17" r="13" fill="#000" opacity="0.12"/>
+    ${categoryGlyph(category)}
+  </svg>`;
+}
+
+function makeMarkerIcon(category, status){
+  return L.divIcon({
+    html: pinSVG(category, STATUS_COLORS[status] || '#5B6B85'),
+    className:'road-pin',
+    iconSize:[34,42],
+    iconAnchor:[17,40],
+    popupAnchor:[0,-34]
+  });
+}
+
+// small round badge for inline use in cards/tables (not on the map)
+function chipSVG(category, colorHex, size){
+  size = size || 22;
+  return `<svg width="${size}" height="${size}" viewBox="0 0 34 34" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="17" cy="17" r="17" fill="${colorHex}"/>
+    ${categoryGlyph(category)}
+  </svg>`;
+}
+function categoryChipHTML(category, colorHex, size){
+  return `<span class="cat-chip">${chipSVG(category, colorHex || '#5B6B85', size)}</span>`;
+}
+
+function buildMapLegendHTML(){
+  const catRows = Object.keys(CATEGORY_META).map(cat=>{
+    return `<div class="legend-row">${chipSVG(cat, '#5B6B85', 24)}<span>${CATEGORY_META[cat].label}</span></div>`;
+  }).join('');
+  const statusRows = Object.keys(STATUS_COLORS).map(s=>{
+    return `<div class="legend-row"><svg width="14" height="14"><circle cx="7" cy="7" r="7" fill="${STATUS_COLORS[s]}"/></svg><span>${STATUS_LABELS[s]}</span></div>`;
+  }).join('');
+  return `
+    <div class="legend-group"><div class="lg-title">민원 유형 (아이콘)</div>${catRows}</div>
+    <div class="legend-group"><div class="lg-title">처리 상태 (색상)</div>${statusRows}</div>
+  `;
+}
+function renderMapLegend(){
+  document.getElementById('mapLegend').innerHTML = buildMapLegendHTML();
+}
+
+/* 로드케어 현황판: 선택한 구청 하나의 읍면동별 접수·처리중·완료 현황만 표로 보여줍니다.
+   "전체"를 선택하면 만세구청부터 동탄구청까지 모든 구청과 소속 읍면동을 전부 이어서 보여줍니다. */
+let citizenBoardGu = GU_LIST[0];
+
+function renderCitizenBoardGuTabs(){
+  const el = document.getElementById('citizenBoardGuTabs');
+  if(!el) return;
+  const opts = ['전체', ...GU_LIST];
+  el.innerHTML = opts.map(gu=>
+    `<button class="${citizenBoardGu===gu?'active':''}" onclick="setCitizenBoardGu('${gu}')">${gu}</button>`
+  ).join('');
+}
+function setCitizenBoardGu(gu){
+  citizenBoardGu = gu;
+  renderCitizenBoardGuTabs();
+  renderCitizenBoard();
+}
+
+/* 구청 하나에 대한 헤더행 + 소속 읍면동 행들을 만들어 반환 (전체 보기·개별 보기 공용) */
+function buildGuBlock(gu){
+  const color = GU_COLOR[gu] || '#5B6B85';
+  let guTotal=0, guDone=0;
+  const dongRows = GU_DONGS[gu].map(dong=>{
+    const items = displayableReports().filter(r=>r.dong===dong);
+    const total = items.length;
+    const done = items.filter(r=>r.status==='완료').length;
+    const inProgress = total - done;
+    const rate = total ? Math.round(done/total*100) : 0;
+    guTotal += total; guDone += done;
+    return `<tr class="gu-dong-row" style="--gu-color:${color};">
+      <td>${dong}</td>
+      <td style="font-family:var(--font-mono);">${total}건</td>
+      <td style="font-family:var(--font-mono);">${inProgress}건</td>
+      <td style="font-family:var(--font-mono);">${done}건</td>
+      <td style="font-family:var(--font-mono);">${rate}%</td>
+    </tr>`;
+  }).join('');
+  const guProgress = guTotal - guDone;
+  const guRate = guTotal ? Math.round(guDone/guTotal*100) : 0;
+  const guHeader = `<tr class="gu-head-row" style="background:${color};">
+    <td>${gu}</td>
+    <td>${guTotal}건</td>
+    <td>${guProgress}건</td>
+    <td>${guDone}건</td>
+    <td>${guRate}%</td>
+  </tr>`;
+  return guHeader + dongRows;
+}
+
+function renderCitizenBoard(){
+  const body = document.getElementById('citizenBoardBody');
+  if(!body) return;
+
+  renderCitizenBoardGuTabs();
+
+  // 화성시 전체 통계 (표 상단 요약 - 시 전체 기준으로 항상 유지)
+  const cityReports = displayableReports();
+  const cityTotal = cityReports.length;
+  const cityDone = cityReports.filter(r=>r.status==='완료').length;
+  const cityProgress = cityTotal - cityDone;
+  const cityRate = cityTotal ? Math.round(cityDone/cityTotal*100) : 0;
+  const summaryEl = document.getElementById('citizenCitySummary');
+  if(summaryEl){
+    summaryEl.innerHTML = `
+      <div class="stat-card tile-navy"><div class="label">화성시 전체 접수</div><div class="value">${cityTotal}건</div></div>
+      <div class="stat-card tile-orange"><div class="label">처리중</div><div class="value">${cityProgress}건</div></div>
+      <div class="stat-card tile-green"><div class="label">처리 완료</div><div class="value">${cityDone}건</div></div>
+      <div class="stat-card tile-blue"><div class="label">완료율</div><div class="value">${cityRate}%</div></div>
+    `;
+  }
+
+  if(citizenBoardGu === '전체'){
+    // 만세구청부터 동탄구청까지 전체를 구청별 블록으로 이어서 표시
+    body.innerHTML = GU_LIST.map(gu => buildGuBlock(gu)).join('');
+    return;
+  }
+
+  body.innerHTML = buildGuBlock(citizenBoardGu);
+}
+
+/* ---------------- AI 대응 인사이트 (유형별 추론) ----------------
+   실제 서비스에서는 이 부분이 누적 민원 데이터를 학습한 모델의 추론 결과로 대체됩니다.
+   프로토타입에서는 현재 접수 데이터(reports)를 실시간 집계해 통계를 내고,
+   유형별 지식베이스(원인·대응 템플릿)와 결합해 추론 결과처럼 보여줍니다. */
+const CATEGORY_INSIGHT_KB = {
+  '포트홀': {
+    cause:'강우 직후·해빙기에 접수가 집중되는 경향이 확인됩니다. 노후 포장 구간에서 균열이 반복적으로 확대되어 동일 지점이 재접수되는 패턴입니다.',
+    recoTemplate:(dong)=>`강우 예보와 연동해 ${dong} 등 반복 접수 지역은 우기 전 사전 순찰을 편성하고, 동일 지점 3회 이상 접수 시 임시 보수 대신 전면 재포장으로 전환할 것을 권고합니다.`
+  },
+  '불법 현수막': {
+    cause:'주요 교차로·버스정류장 인근에서 반복 게시되는 경향이 있으며, 지역 행사·선거 시기에 접수 건수가 급증하는 계절성이 관측됩니다.',
+    recoTemplate:(dong)=>`${dong} 등 상습 게시 구역은 CCTV 연계 자동 감지 대상으로 지정하고, 행사 시즌 2주 전부터 집중 단속 일정을 사전 편성할 것을 권고합니다.`
+  },
+  '신호등 고장': {
+    cause:'특정 교차로에서 고장이 반복되는 패턴이 확인되며, 정전·낙뢰 이후 접수가 집중되는 것으로 보아 노후 제어기와 예비전원 미비가 주요 원인으로 추정됩니다.',
+    recoTemplate:(dong)=>`${dong} 등 반복 장애 교차로는 예방정비 주기를 단축하고 비상전원(UPS) 우선 설치 대상으로 지정하며, 심야 고장 시 점멸신호로 자동 전환하는 매뉴얼을 마련할 것을 권고합니다.`
+  },
+  '가로등 미점등': {
+    cause:'동일 배전 계통(feeder) 단위로 동시에 소등되는 경향이 있어, 조도센서·안정기 노후화 또는 배선 계통 결함이 원인으로 추정됩니다.',
+    recoTemplate:(dong)=>`${dong} 인근은 동일 계통 일괄 점검을 실시하고, 통학로 등 야간 취약구간을 LED 전환 우선순위 리스트 상단에 반영할 것을 권고합니다.`
+  }
+};
+
+function analyzeCategory(catName){
+  const items = displayableReports().filter(r=>r.category===catName);
+  const total = items.length;
+  const byDong = {};
+  items.forEach(r=>{ byDong[r.dong] = (byDong[r.dong]||0) + 1; });
+  const dongBreakdown = Object.keys(byDong)
+    .map(d=>({dong:d, count:byDong[d]}))
+    .sort((a,b)=>b.count-a.count);
+  const topDong = dongBreakdown.length ? dongBreakdown[0].dong : '-';
+  const topCount = dongBreakdown.length ? dongBreakdown[0].count : 0;
+  const urgent = items.filter(r=>r.priority==='상').length;
+  const done = items.filter(r=>r.status==='완료').length;
+  const doneRate = total ? Math.round(done/total*100) : 0;
+  const riskScore = Math.min(96, 22 + total*11 + urgent*9);
+
+  /* 도로명(노선) 단위 위험 구간 추론: roadLabel(예: 시도57호선) 기준으로 집계해
+     가장 많이 접수된 구간과 그 대표 위치(위경도)까지 함께 추정합니다. */
+  const byRoad = {};
+  items.forEach(r=>{
+    const key = roadLabel(r);
+    if(!byRoad[key]) byRoad[key] = {label:key, count:0, dong:r.dong, sampleId:r.id, lat:r.lat, lng:r.lng};
+    byRoad[key].count++;
+  });
+  const roadBreakdown = Object.values(byRoad).sort((a,b)=>b.count-a.count);
+  const topRoad = roadBreakdown.length ? roadBreakdown[0] : null;
+
+  return {total, topDong, topCount, urgent, doneRate, riskScore, dongBreakdown, roadBreakdown, topRoad};
+}
+
+/* 전체 민원을 지역(읍면동) 기준으로 집계해 다발 지역과 해당 지역의 주요 민원 유형을 함께 추론 */
+function analyzeCityHotspots(){
+  const byDong = {};
+  displayableReports().forEach(r=>{
+    if(!byDong[r.dong]) byDong[r.dong] = {total:0, byCat:{}};
+    byDong[r.dong].total++;
+    byDong[r.dong].byCat[r.category] = (byDong[r.dong].byCat[r.category]||0) + 1;
+  });
+  const rows = Object.keys(byDong).map(d=>{
+    const entry = byDong[d];
+    let topCat = '-', topCatCount = 0;
+    Object.keys(entry.byCat).forEach(c=>{ if(entry.byCat[c]>topCatCount){ topCatCount = entry.byCat[c]; topCat = c; } });
+    return {dong:d, total:entry.total, topCat, topCatCount};
+  }).sort((a,b)=>b.total-a.total);
+  return rows;
+}
+
+/* 위험도가 높을수록 위험색(빨강)이 진해지는 단일 색상 그라데이션 */
+function riskColor(score){
+  const alpha = (0.18 + Math.min(score,100)/100 * 0.82).toFixed(2);
+  return `rgba(232,84,63,${alpha})`;
+}
+/* 건수 비중이 클수록 브랜드 블루가 진해지는 단일 색상 그라데이션 (좋고 나쁨이 없는 순수 발생량 지표용) */
+function volumeColor(pct){
+  const alpha = (0.18 + Math.min(pct,100)/100 * 0.82).toFixed(2);
+  return `rgba(47,111,237,${alpha})`;
+}
+
+/* 유형별 카드 필터: 전체 또는 특정 유형 하나만 볼 수 있습니다 */
+let insightCategoryFilter = '전체';
+function renderInsightCategoryTabs(){
+  const el = document.getElementById('insightCategoryTabs');
+  if(!el) return;
+  const cats = Object.keys(CATEGORY_META);
+  const opts = ['전체', ...cats];
+  el.innerHTML = opts.map(cat=>{
+    const label = cat==='전체' ? '전체' : CATEGORY_META[cat].label;
+    return `<button class="${insightCategoryFilter===cat?'active':''}" onclick="setInsightCategoryFilter('${cat}')">${label}</button>`;
+  }).join('');
+}
+function setInsightCategoryFilter(cat){
+  insightCategoryFilter = cat;
+  renderInsightCategoryTabs();
+  renderInsights();
+}
+
+function renderInsights(){
+  const container = document.getElementById('insightCards');
+  container.innerHTML = `<div class="thinking-line"><span class="spinner"></span> 유형별 접수 이력을 분석해 재발 원인을 추론하는 중...</div>`;
+  document.getElementById('hotspotList').innerHTML = `<div class="thinking-line"><span class="spinner"></span> 지역별 발생 현황을 집계하는 중...</div>`;
+  document.getElementById('insightMeta').innerHTML = '';
+  renderInsightCategoryTabs();
+  setTimeout(()=>{
+    const cats = Object.keys(CATEGORY_META);
+    const catsToRender = insightCategoryFilter==='전체' ? cats : [insightCategoryFilter];
+    document.getElementById('insightMeta').innerHTML =
+      `분석 대상: <b>${displayableReports().length}건</b> · 분석 유형: <b>${cats.length}종</b> · 마지막 추론: <b>방금 전</b>`;
+
+    // 전체 민원 다발 지역
+    const hotspots = analyzeCityHotspots();
+    const maxCount = hotspots.length ? hotspots[0].total : 1;
+    document.getElementById('hotspotList').innerHTML = hotspots.length ? hotspots.map((h,i)=>{
+      const hpct = Math.round(h.total/maxCount*100);
+      return `
+      <div class="hotspot-row">
+        <div class="hotspot-rank ${i===0?'r1':''}">${i+1}</div>
+        <div class="hotspot-dong">${h.dong}</div>
+        <div class="hotspot-bar-track"><div class="hotspot-bar-fill" style="width:${hpct}%;background:${volumeColor(hpct)};"></div></div>
+        <div class="hotspot-count">${h.total}건</div>
+        <div class="hotspot-topcat">${chipSVG(h.topCat, '#5B6B85', 24)}</div>
+      </div>
+    `;
+    }).join('') : '<div class="empty">데이터 없음</div>';
+
+    container.innerHTML = catsToRender.map((cat, catIdx)=>{
+      const stat = analyzeCategory(cat);
+      const kb = CATEGORY_INSIGHT_KB[cat];
+      const rc = riskColor(stat.riskScore);
+      const recoText = kb.recoTemplate(stat.total ? stat.topDong : '전 지역');
+      const dongRows = stat.dongBreakdown.slice(0,3).map(d=>{
+        const pct = Math.round(d.count/stat.topCount*100);
+        return `<div class="dong-mini-row">
+          <div class="dm-label">${d.dong}</div>
+          <div class="dm-track"><div class="dm-fill" style="width:${pct}%;background:${volumeColor(pct)};"></div></div>
+          <div class="dm-num">${d.count}건</div>
+        </div>`;
+      }).join('') || '<div class="empty" style="padding:12px 0;">접수 이력 없음</div>';
+
+      const roadRows = stat.roadBreakdown.slice(0,3).map(rd=>{
+        const pct = stat.topRoad ? Math.round(rd.count/stat.topRoad.count*100) : 0;
+        return `<div class="dong-mini-row">
+          <div class="dm-label">${rd.label}</div>
+          <div class="dm-track"><div class="dm-fill" style="width:${pct}%;background:${volumeColor(pct)};"></div></div>
+          <div class="dm-num">${rd.count}건</div>
+        </div>`;
+      }).join('');
+      const mapDivId = `insight-map-${catIdx}`;
+      const locationBlock = stat.topRoad ? `
+        <div class="road-location-callout">
+          <div class="rl-road">📍 ${stat.topRoad.label}</div>
+          <div class="rl-detail">${stat.topRoad.dong} 일대 · 위도 ${stat.topRoad.lat.toFixed(5)}, 경도 ${stat.topRoad.lng.toFixed(5)} · 누적 ${stat.topRoad.count}건</div>
+          <button class="small-btn" id="${mapDivId}-btn" onclick="toggleInlineInsightMap('${stat.topRoad.sampleId}','${mapDivId}',this)">🗺️ 지도에서 위치 확인</button>
+          <div id="${mapDivId}-wrap" style="display:none;margin-top:12px;">
+            <div id="${mapDivId}" class="insight-inline-map"></div>
+            <div class="map-legend" id="${mapDivId}-legend" style="margin-top:10px;"></div>
+          </div>
+        </div>
+      ` : '<div class="empty" style="padding:12px 0;">접수 이력 없음</div>';
+      return `
+      <div class="insight-card">
+        <div class="insight-head">
+          ${chipSVG(cat, '#5B6B85', 40)}
+          <div>
+            <h3>${CATEGORY_META[cat].label}</h3>
+            <div class="sub">누적 ${stat.total}건 분석 기반 AI 추론</div>
+          </div>
+        </div>
+        <div class="insight-stats">
+          <div class="istat"><div class="k">누적 접수</div><div class="v">${stat.total}건</div></div>
+          <div class="istat"><div class="k">최다 발생 지역</div><div class="v">${stat.total ? stat.topDong : '-'}</div></div>
+          <div class="istat"><div class="k">처리 완료율</div><div class="v">${stat.doneRate}%</div></div>
+        </div>
+        <div class="risk-row">
+          <div class="risklabel">재발 위험도</div>
+          <div class="risktrack"><div class="riskfill" style="width:${stat.riskScore}%;background:${rc};"></div></div>
+          <div class="risknum" style="color:var(--danger);">${stat.riskScore}%</div>
+        </div>
+        <div class="insight-block">
+          <div class="dong-mini-title">📍 지역별 발생 현황</div>
+          ${dongRows}
+        </div>
+        <div class="insight-block">
+          <div class="dong-mini-title">🛣️ AI 추정 위험 도로·위치</div>
+          ${roadRows}
+          ${locationBlock}
+        </div>
+        <div class="insight-block">
+          <div class="ib-label">🧠 AI 원인 추론</div>
+          <p>${kb.cause}</p>
+        </div>
+        <div class="insight-block reco">
+          <div class="ib-label">✅ 향후 대응 권고</div>
+          <p>${recoText}</p>
+        </div>
+      </div>`;
+    }).join('');
+  }, 700);
+}
+
+function runInsightAnalysis(){
+  renderInsights();
+}
+
+// seed some existing admin data
+function seedData(){
+  const statuses   = ['배정','출동','완료','완료','접수','출동','완료','배정','접수','출동'];
+  const priorities = ['상','중','하','중','상','하','중','상','하','중'];
+  const channelsSeed = ['도와드림','국민신문고','행정종합관찰관제','행정종합관찰관제','도와드림','행정종합관찰관제','국민신문고','행정종합관찰관제','도와드림','행정종합관찰관제'];
+  const monthPool = [1,1,2,2,3,3,4,4,4,5,5,5,5,6,6,6,6,7,7,7,7,7]; // 1~7월 데모 데이터 (오늘=7월 13일 기준, 최근 달일수록 비중 높게)
+  const SEED_COUNT = 420;
+  for(let i=0;i<SEED_COUNT;i++){
+    const cat = CATEGORIES[i % CATEGORIES.length];
+    const channel = channelsSeed[i % channelsSeed.length];
+    const roadType = ROAD_TYPES[Math.floor(Math.random()*ROAD_TYPES.length)];
+    const roadNumber = pickRoadNumber(roadType);
+    const dong = DONGS[Math.floor(Math.random()*DONGS.length)];
+    const base = DONG_COORDS[dong];
+    const month = monthPool[Math.floor(Math.random()*monthPool.length)];
+    const day = (i%9)+1;
+    const status = statuses[i % statuses.length];
+    reports.push({
+      id: nextChannelId(channel, month, day),
+      category: cat.name, dept: cat.dept,
+      dong: dong,
+      channel: channel,
+      submitter: pickSubmitter(channel),
+      staff: pickStaffSubmitter(channel),
+      roadType: roadType,
+      roadNumber: roadNumber,
+      lat: base[0] + (Math.random()-0.5)*0.004,
+      lng: base[1] + (Math.random()-0.5)*0.004,
+      priority: priorities[i % priorities.length],
+      status: status,
+      month: month,
+      createdAt: `2026-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`,
+      completedAt: status==='완료' ? `2026-${String(month).padStart(2,'0')}-${String(Math.min(day+2,28)).padStart(2,'0')}` : undefined
+    });
+  }
+
+  /* 현장 순찰 동선(포트홀·불법 현수막·가로등) 데모가 4개 구청 어디를 선택해도 의미 있게
+     보이도록, 미처리 상태의 대상 유형 민원을 구청별로 넉넉히 추가 생성합니다. */
+  const pendingStatuses = ['접수','배정','접수','배정','출동'];
+  const pendingPriorities = ['상','중','상','중','하'];
+  GU_LIST.forEach(gu=>{
+    for(let i=0;i<8;i++){
+      const dong = GU_DONGS[gu][Math.floor(Math.random()*GU_DONGS[gu].length)];
+      const base = DONG_COORDS[dong];
+      const cat = CATEGORIES.find(c=>c.name===ROUTE_CATEGORIES[i % ROUTE_CATEGORIES.length]);
+      const channel = channelsSeed[Math.floor(Math.random()*channelsSeed.length)];
+      const roadType = ROAD_TYPES[Math.floor(Math.random()*ROAD_TYPES.length)];
+      const roadNumber = pickRoadNumber(roadType);
+      const month = monthPool[Math.floor(Math.random()*monthPool.length)];
+      const day = (i%9)+1;
+      reports.push({
+        id: nextChannelId(channel, month, day),
+        category: cat.name, dept: cat.dept,
+        dong: dong,
+        channel: channel,
+        submitter: pickSubmitter(channel),
+      staff: pickStaffSubmitter(channel),
+        roadType: roadType,
+        roadNumber: roadNumber,
+        lat: base[0] + (Math.random()-0.5)*0.004,
+        lng: base[1] + (Math.random()-0.5)*0.004,
+        priority: pendingPriorities[i % pendingPriorities.length],
+        status: pendingStatuses[i % pendingStatuses.length],
+        month: month,
+        createdAt: `2026-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`
+      });
+    }
+  });
+}
+seedData();
+
+/* 하반기(7월) 관찰 우수 데모용 합성 데이터 생성.
+   상반기와 마찬가지로 최우수·우수·장려·노력 네 훈격이 전부 예시로 나타나도록,
+   구청과 무관하게 화성시청 인근 좌표를 기준으로 7월 관찰 기록을 추가 생성합니다.
+   장려(15명 중 하나)까지 보여주려면 최소 14명이 30건 이상이어야 해서 데이터량이 큽니다. */
+function seedFirstHalfAwardDemo(){
+  const cats = CATEGORIES;
+  const depot = [37.1995, 126.8312]; // 화성시청 인근 (HS_CITY_HALL과 동일 - 아직 선언 전이라 직접 값 사용)
+  // 순위 1~14: 최우수(1~3)·우수(4~13)·장려(14) 예시. 순위 15~17: 노력 예시(소수 건).
+  // ※ 이 데이터는 상반기(1~6월) 예시입니다 (기존 하반기 예시와 맞바꿈).
+  const rankedNames = [
+    {name:'최안전', count:45}, {name:'윤단속', count:42}, {name:'정현장', count:39},
+    {name:'장보수', count:37}, {name:'서지킴', count:36}, {name:'임현장', count:35},
+    {name:'조안심', count:34}, {name:'이점검', count:33}, {name:'김도로', count:33},
+    {name:'우도로', count:32}, {name:'나순찰', count:32}, {name:'권지킴', count:31},
+    {name:'고순찰', count:30}, {name:'표순찰', count:30}, // 13·14위: 장려 훈격 예시(14위) 확보용
+    {name:'배순찰', count:4}, {name:'신도로', count:3}, {name:'박순찰', count:2} // 노력 예시(소수)
+  ];
+  let seq = 90000;
+  rankedNames.forEach(({name, count})=>{
+    for(let i=0;i<count;i++){
+      const cat = cats[Math.floor(Math.random()*cats.length)];
+      const roadType = ROAD_TYPES[Math.floor(Math.random()*ROAD_TYPES.length)];
+      const month = (i % 6) + 1; // 1~6월(상반기) 분산
+      const day = (i%9)+1;
+      seq++;
+      reports.push({
+        id: `행정-202601${day%10}-H${seq}`,
+        category: cat.name, dept: cat.dept,
+        dong: DONGS[Math.floor(Math.random()*DONGS.length)],
+        channel: '행정종합관찰관제',
+        submitter: null,
+        staff: name,
+        roadType: roadType,
+        roadNumber: pickRoadNumber(roadType),
+        lat: depot[0] + (Math.random()-0.5)*0.03,
+        lng: depot[1] + (Math.random()-0.5)*0.03,
+        priority: ['상','중','하'][Math.floor(Math.random()*3)],
+        status: Math.random() < 0.3 ? '완료' : ['접수','배정','출동'][Math.floor(Math.random()*3)],
+        month: month,
+        createdAt: `2026-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`,
+        awardOnly: true
+      });
+    }
+  });
+}
+seedFirstHalfAwardDemo();
+
+/* 상반기 처리 우수 데모 보강: 관찰 우수 상위자와 겹치면 규정상 제외되므로,
+   관찰 건수는 기준선(30건)만 살짝 넘기되 완료율이 매우 높은 별도 인물들을 만들어
+   "처리 우수" 랭킹에서는 상위권, "관찰 우수" 랭킹에서는 하위권이 되도록 구성합니다.
+   이렇게 하면 동시 선정 규칙에 따라 처리 우수 쪽에 정상적으로 남습니다. */
+function seedFirstHalfProcessChampions(){
+  const cats = CATEGORIES;
+  const depot = [37.1995, 126.8312];
+  const firstHalfMonths = [1,2,3,4,5,6];
+  // 관찰 32~35건(상반기 관찰 우수 최하위권) + 그중 30~33건을 완료 처리(처리 우수 상위권)
+  const champions = [
+    {name:'마준법', observe:35, done:33},
+    {name:'여지킴', observe:33, done:31},
+    {name:'차보수', observe:32, done:30}
+  ];
+  let seq = 95000;
+  champions.forEach(({name, observe, done})=>{
+    for(let i=0;i<observe;i++){
+      const cat = cats[Math.floor(Math.random()*cats.length)];
+      const roadType = ROAD_TYPES[Math.floor(Math.random()*ROAD_TYPES.length)];
+      const month = firstHalfMonths[i % firstHalfMonths.length];
+      const day = (i%9)+1;
+      seq++;
+      reports.push({
+        id: `행정-2026${String(month).padStart(2,'0')}${day%10}-C${seq}`,
+        category: cat.name, dept: cat.dept,
+        dong: DONGS[Math.floor(Math.random()*DONGS.length)],
+        channel: '행정종합관찰관제',
+        submitter: null,
+        staff: name,
+        roadType: roadType,
+        roadNumber: pickRoadNumber(roadType),
+        lat: depot[0] + (Math.random()-0.5)*0.03,
+        lng: depot[1] + (Math.random()-0.5)*0.03,
+        priority: ['상','중','하'][Math.floor(Math.random()*3)],
+        status: i < done ? '완료' : ['접수','배정','출동'][Math.floor(Math.random()*3)],
+        month: month,
+        createdAt: `2026-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`,
+        awardOnly: true
+      });
+    }
+  });
+}
+seedFirstHalfProcessChampions();
+
+/* 하반기(7~12월) 관찰 우수 데모: 상반기(1~6월, 약 180일)와 달리 "오늘=7월 13일" 기준
+   하반기는 아직 13일밖에 지나지 않았습니다. 그래서 상반기와 건수가 비슷하면 형평성에 맞지
+   않아, 경과 기간에 비례해 전체적으로 훨씬 적은 건수로 구성합니다 (30건 기준을 겨우 넘긴
+   소수만 최우수·우수, 대부분은 노력 수준). */
+function seedSecondHalfAwardDemo(){
+  const cats = CATEGORIES;
+  const depot = [37.1995, 126.8312];
+  const rankedNames = [
+    {name:'오민생', count:33}, {name:'박순찰', count:32}, {name:'신도로', count:31}, // 최우수(3): 30건을 겨우 넘긴 수준
+    {name:'배순찰', count:30}, {name:'한기동', count:30}, // 우수(2): 하반기 초반이라 소수만 진입
+    {name:'이점검', count:2}, {name:'김도로', count:1}, {name:'장보수', count:1} // 노력 예시(소수, 상반기보다도 적음)
+  ];
+  let seq = 92000;
+  rankedNames.forEach(({name, count})=>{
+    for(let i=0;i<count;i++){
+      const cat = cats[Math.floor(Math.random()*cats.length)];
+      const roadType = ROAD_TYPES[Math.floor(Math.random()*ROAD_TYPES.length)];
+      const day = (i%9)+1;
+      seq++;
+      reports.push({
+        id: `행정-2026070${day%10}-H${seq}`,
+        category: cat.name, dept: cat.dept,
+        dong: DONGS[Math.floor(Math.random()*DONGS.length)],
+        channel: '행정종합관찰관제',
+        submitter: null,
+        staff: name,
+        roadType: roadType,
+        roadNumber: pickRoadNumber(roadType),
+        lat: depot[0] + (Math.random()-0.5)*0.03,
+        lng: depot[1] + (Math.random()-0.5)*0.03,
+        priority: ['상','중','하'][Math.floor(Math.random()*3)],
+        status: Math.random() < 0.3 ? '완료' : ['접수','배정','출동'][Math.floor(Math.random()*3)],
+        month: 7,
+        createdAt: `2026-07-${String(day).padStart(2,'0')}`,
+        awardOnly: true
+      });
+    }
+  });
+}
+seedSecondHalfAwardDemo();
+
+/* 하반기 처리 우수 데모: 관찰 우수와 마찬가지로 경과 기간이 짧다는 점을 반영해
+   상반기보다 훨씬 적은 건수로, 최우수 1명 정도만 겨우 기준을 넘기도록 구성합니다. */
+function seedSecondHalfProcessChampions(){
+  const cats = CATEGORIES;
+  const depot = [37.1995, 126.8312];
+  const champions = [
+    {name:'마도로', observe:31, done:30} // 하반기 초반이라 처리 우수도 최우수 1명만 겨우 기준 충족
+  ];
+  let seq = 96000;
+  champions.forEach(({name, observe, done})=>{
+    for(let i=0;i<observe;i++){
+      const cat = cats[Math.floor(Math.random()*cats.length)];
+      const roadType = ROAD_TYPES[Math.floor(Math.random()*ROAD_TYPES.length)];
+      const day = (i%9)+1;
+      seq++;
+      reports.push({
+        id: `행정-2026070${day%10}-C${seq}`,
+        category: cat.name, dept: cat.dept,
+        dong: DONGS[Math.floor(Math.random()*DONGS.length)],
+        channel: '행정종합관찰관제',
+        submitter: null,
+        staff: name,
+        roadType: roadType,
+        roadNumber: pickRoadNumber(roadType),
+        lat: depot[0] + (Math.random()-0.5)*0.03,
+        lng: depot[1] + (Math.random()-0.5)*0.03,
+        priority: ['상','중','하'][Math.floor(Math.random()*3)],
+        status: i < done ? '완료' : ['접수','배정','출동'][Math.floor(Math.random()*3)],
+        month: 7,
+        createdAt: `2026-07-${String(day).padStart(2,'0')}`,
+        awardOnly: true
+      });
+    }
+  });
+}
+seedSecondHalfProcessChampions();
+
+let currentViewId = 'c-home';
+
+/* ---------------- 도로 스냅(Road Snap) ----------------
+   민원 좌표를 그냥 무작위로 흩뿌리면 실제 지도(OSM) 위 도로가 아니라
+   건물·공터 위에 마커가 찍히는 경우가 있습니다. 그래서 각 민원 좌표를
+   OSRM(오픈소스 라우팅 엔진)의 'nearest' 서비스로 보정해서, 마커가
+   가장 가까운 실제 도로 선 위에 정확히 놓이도록 만듭니다. */
+const OSRM_NEAREST_URL = 'https://router.project-osrm.org/nearest/v1/driving/';
+
+async function snapToRoad(lat, lng){
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(()=>controller.abort(), 4000);
+    const res = await fetch(`${OSRM_NEAREST_URL}${lng},${lat}?number=1`, {signal: controller.signal});
+    clearTimeout(timeout);
+    if(!res.ok) return null;
+    const data = await res.json();
+    if(data && data.waypoints && data.waypoints[0]){
+      const [snLng, snLat] = data.waypoints[0].location;
+      // 시골 지역은 OSM 도로망이 성겨서 엉뚱한 먼 도로로 스냅될 수 있어,
+      // 원래 좌표에서 800m 이상 벗어나면 스냅 결과를 버리고 원래 좌표를 유지합니다.
+      if(typeof distanceKm === 'function' && distanceKm(lat, lng, snLat, snLng) > 0.8) return null;
+      return {lat: snLat, lng: snLng};
+    }
+  } catch(e){ /* 네트워크 오류·타임아웃 시 원래 좌표 유지 */ }
+  return null;
+}
+
+/* 전체 민원을 배치로 나눠 순차 스냅 (외부 서비스 과부하 방지) */
+async function snapAllReportsToRoads(){
+  const BATCH = 5;
+  for(let i=0; i<reports.length; i+=BATCH){
+    const batch = reports.slice(i, i+BATCH);
+    await Promise.all(batch.map(async r=>{
+      const snapped = await snapToRoad(r.lat, r.lng);
+      if(snapped){ r.lat = snapped.lat; r.lng = snapped.lng; r.roadSnapped = true; }
+    }));
+    // 지도 화면을 보고 있다면 진행되는 대로 갱신
+    if(currentViewId==='c-map' && map) initMap();
+    if(currentViewId==='a-route' && routeMap) showRouteDepotMarker();
+  }
+  if(currentViewId==='a-dashboard') renderDashboard();
+}
+snapAllReportsToRoads().catch(()=>{});
+
+/* ---------------- nav ---------------- */
+function setMode(mode){
+  document.getElementById('btn-citizen').classList.toggle('active', mode==='citizen');
+  document.getElementById('btn-admin').classList.toggle('active', mode==='admin');
+  document.getElementById('citizen-subnav').style.display = mode==='citizen' ? 'flex':'none';
+  document.getElementById('admin-subnav').style.display = mode==='admin' ? 'flex':'none';
+  if(mode==='citizen') setView('c-home'); else setView('a-dashboard');
+}
+
+const ADDR_MAP = {
+  'c-home':'roadcare.hscity.go.kr/',
+  'c-map':'roadcare.hscity.go.kr/map',
+  'a-dashboard':'admin-roadcare.hscity.go.kr/dashboard',
+  'a-tasks':'admin-roadcare.hscity.go.kr/tasks/assign',
+  'a-insight':'admin-roadcare.hscity.go.kr/insights',
+  'a-award':'admin-roadcare.hscity.go.kr/awards',
+  'a-route':'admin-roadcare.hscity.go.kr/route'
+};
+
+function setView(view){
+  currentViewId = view;
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.getElementById(view).classList.add('active');
+  document.querySelectorAll('.subnav button').forEach(b=>{
+    b.classList.toggle('active', b.dataset.view===view);
+  });
+  document.getElementById('addrbar').innerText = ADDR_MAP[view] || 'roadcare.hscity.go.kr/';
+  if(view==='c-map'){ setTimeout(initMap, 50); renderCitizenBoard(); }
+  if(view==='a-dashboard') renderDashboard();
+  if(view==='a-tasks') renderTasks();
+  if(view==='a-insight') renderInsights();
+  if(view==='a-award'){ renderAwardHalfTabs(); renderAwardTypeTabs(); renderAwardRanking(); renderStaffAwardRanking(); }
+  if(view==='a-route') setTimeout(initRouteView, 50);
+}
+
+/* ---------------- citizen: AI photo analysis ---------------- */
+function handlePhoto(){
+  const input = document.getElementById('photoInput');
+  const label = document.getElementById('uploadLabel');
+  const resultBox = document.getElementById('aiResult');
+  if(!input.files.length) return;
+  label.innerText = '📎 ' + input.files[0].name;
+  resultBox.classList.remove('show');
+  document.getElementById('aiCategory').innerText = '분석중...';
+  document.getElementById('aiConf').innerHTML = '<span class="spinner"></span>';
+  document.getElementById('aiCoords').innerText = '';
+
+  setTimeout(()=>{
+    const cat = CATEGORIES[Math.floor(Math.random()*CATEGORIES.length)];
+    const conf = (88 + Math.random()*10).toFixed(1);
+    const dong = DONGS[Math.floor(Math.random()*DONGS.length)];
+    const base = DONG_COORDS[dong];
+    const lat = (base[0] + (Math.random()-0.5)*0.004).toFixed(5);
+    const lng = (base[1] + (Math.random()-0.5)*0.004).toFixed(5);
+    currentPhotoAnalysis = {cat, conf, lat, lng, dong};
+    document.getElementById('aiIconSlot').innerHTML = chipSVG(cat.name, '#2a9d8f', 26);
+    document.getElementById('aiCategory').innerText = cat.name + ' · ' + cat.dept + ' 배정';
+    document.getElementById('aiConf').innerText = 'AI 신뢰도 ' + conf + '%';
+    document.getElementById('aiCoords').innerText = `📍 위치 자동 태깅 완료 — ${dong} 인근, 위도 ${lat}, 경도 ${lng}`;
+    resultBox.classList.add('show');
+  }, 900);
+}
+
+function submitReport(){
+  if(!currentPhotoAnalysis){
+    alert('먼저 현장 사진을 올려 AI 분석을 진행해 주세요.');
+    return;
+  }
+  const id = nextChannelId('도와드림', CURRENT_MONTH, CURRENT_DAY);
+  const a = currentPhotoAnalysis;
+  const submittedRoadType = ROAD_TYPES[Math.floor(Math.random()*ROAD_TYPES.length)];
+  const newReport = {
+    id, category:a.cat.name, dept:a.cat.dept,
+    dong: a.dong,
+    channel: '도와드림',
+    submitter: pickSubmitter('도와드림'),
+    roadType: submittedRoadType,
+    roadNumber: pickRoadNumber(submittedRoadType),
+    lat: parseFloat(a.lat), lng: parseFloat(a.lng),
+    priority: ['상','중','하'][Math.floor(Math.random()*3)],
+    status:'접수', createdAt: `2026-${String(CURRENT_MONTH).padStart(2,'0')}-${String(CURRENT_DAY).padStart(2,'0')}`,
+    month: CURRENT_MONTH,
+    desc: document.getElementById('descInput').value
+  };
+  reports.unshift(newReport);
+  // 접수 즉시 실제 도로 위 좌표로 보정 (완료되면 지도를 보고 있을 때 자동 반영)
+  snapToRoad(newReport.lat, newReport.lng).then(snapped=>{
+    if(snapped){
+      newReport.lat = snapped.lat; newReport.lng = snapped.lng; newReport.roadSnapped = true;
+      if(currentViewId==='c-map' && map) initMap();
+    }
+  }).catch(()=>{});
+  lastSubmittedId = id;
+  // reset form
+  document.getElementById('photoInput').value='';
+  document.getElementById('uploadLabel').innerText='사진을 선택하거나 드래그해서 올려주세요';
+  document.getElementById('aiResult').classList.remove('show');
+  document.getElementById('descInput').value='';
+  currentPhotoAnalysis = null;
+  setView('c-status');
+}
+
+let lastSubmittedId = null;
+
+function renderStatus(){
+  const desc = document.getElementById('statusDesc');
+  const body = document.getElementById('statusBody');
+  if(!lastSubmittedId){
+    desc.innerText = '아직 접수한 민원이 없습니다. 도와드림 신고를 먼저 진행해 주세요.';
+    body.innerHTML = `<div class="empty"><span class="big">🛣️</span>접수 내역이 없습니다</div>`;
+    return;
+  }
+  const r = reports.find(x=>x.id===lastSubmittedId);
+  desc.innerHTML = `${categoryChipHTML(r.category, STATUS_COLORS[r.status], 20)} 접수번호 ${r.id} · ${r.category} · ${r.dong}`;
+  desc.style.display='flex';desc.style.alignItems='center';desc.style.gap='6px';
+  const steps = [
+    {name:'접수', label:'접수', time:'방금 전', desc:'AI가 사진을 분석해 유형을 자동 분류했습니다.'},
+    {name:'배정', label:'배정', time:'약 1분 후 예상', desc: r.dept + '·기동단으로 자동 배정되었습니다.'},
+    {name:'출동', label:'출동', time:'약 15분 후 예상', desc:'기동단이 최적 경로로 현장 출동 예정입니다.'},
+    {name:'완료', label:'등록완료', time:'-', desc:'현장 조치 완료 후 결과 사진이 전송됩니다.'}
+  ];
+  const doneIdx = 0; // just submитted -> only 접수 done
+  body.innerHTML = `<div style="margin-bottom:18px;">${statusStepBar(r.status)}</div>` +
+    `<ul class="timeline">` + steps.map((s,i)=>`
+    <li class="${i<=doneIdx?'done':''}">
+      <div class="t-title">${s.label} <span class="pill ${s.name}" style="margin-left:6px;">${s.label}</span></div>
+      <div class="t-time">${s.time}</div>
+      <div class="t-desc">${s.desc}</div>
+    </li>`).join('') + `</ul>`;
+}
+
+/* ---------------- citizen: map ---------------- */
+function initMap(){
+  if(map){ map.remove(); }
+  map = L.map('map').setView(HS_CENTER, 12);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution:'&copy; OpenStreetMap contributors'
+  }).addTo(map);
+  mapMarkers = {};
+
+  const singleReport = mapSingleReportId ? reports.find(r=>r.id===mapSingleReportId) : null;
+  const reportsToShow = singleReport ? [singleReport] : displayableReports();
+
+  reportsToShow.forEach(r=>{
+    const marker = L.marker([r.lat, r.lng], { icon: makeMarkerIcon(r.category, r.status) }).addTo(map);
+    marker.bindTooltip(r.id, {
+      direction:'top', offset:[0,-38], className:'id-tooltip'
+    });
+    marker.bindPopup(`
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+        ${chipSVG(r.category, STATUS_COLORS[r.status], 26)}
+        <b>${r.category}</b>
+      </div>
+      ${r.dong} · 도로: <b>${roadLabel(r)}</b><br><b>접수번호: ${r.id}</b><br>접수채널: ${channelBadge(r.channel)}<br>${statusStepBar(r.status, true)}`);
+    mapMarkers[r.id] = marker;
+  });
+  renderMapLegend();
+
+  const bannerEl = document.getElementById('mapSingleFocusBanner');
+  if(singleReport){
+    map.setView([singleReport.lat, singleReport.lng], 16);
+    setTimeout(()=>mapMarkers[singleReport.id].openPopup(), 300);
+    if(bannerEl){
+      bannerEl.style.display = 'flex';
+      bannerEl.querySelector('.mfb-text').textContent = `📍 민원 ${singleReport.id} 위치만 표시 중`;
+    }
+  } else {
+    if(bannerEl) bannerEl.style.display = 'none';
+    if(pendingMapFocusId && mapMarkers[pendingMapFocusId]){
+      const target = mapMarkers[pendingMapFocusId];
+      map.setView(target.getLatLng(), 15);
+      setTimeout(()=>target.openPopup(), 400);
+      pendingMapFocusId = null;
+    }
+  }
+}
+function clearMapSingleFocus(){
+  mapSingleReportId = null;
+  initMap();
+}
+
+/* AI 인사이트 등 다른 화면에서 특정 민원의 위치를 지도에서 바로 확인.
+   "큰 지도에서 보기"는 해당 민원 하나의 위치만 표시합니다. */
+let mapSingleReportId = null;
+function focusMapOnReport(reportId){
+  mapSingleReportId = reportId;
+  document.getElementById('btn-citizen').classList.add('active');
+  document.getElementById('btn-admin').classList.remove('active');
+  document.getElementById('citizen-subnav').style.display = 'flex';
+  document.getElementById('admin-subnav').style.display = 'none';
+  setView('c-map');
+}
+
+/* AI 대응 인사이트 카드 안에서 "지도에서 위치 확인"을 누르면 페이지 이동 없이
+   버튼 바로 아래에 작은 지도를 펼쳐서 보여줍니다. 다시 누르면 접힙니다. */
+let insightInlineMaps = {};
+function toggleInlineInsightMap(reportId, mapDivId, btnEl){
+  const wrap = document.getElementById(mapDivId + '-wrap');
+  const container = document.getElementById(mapDivId);
+  if(!wrap || !container) return;
+
+  const isOpen = wrap.style.display === 'block';
+  if(isOpen){
+    wrap.style.display = 'none';
+    if(insightInlineMaps[mapDivId]){
+      try { insightInlineMaps[mapDivId].remove(); } catch(e){}
+      delete insightInlineMaps[mapDivId];
+    }
+    if(btnEl) btnEl.innerHTML = '🗺️ 지도에서 위치 확인';
+    return;
+  }
+
+  const r = reports.find(x=>x.id===reportId);
+  if(!r) return;
+  wrap.style.display = 'block';
+  if(btnEl) btnEl.innerHTML = '🔼 지도 닫기';
+
+  setTimeout(()=>{
+    try{
+      if(insightInlineMaps[mapDivId]){ insightInlineMaps[mapDivId].remove(); }
+      const m = L.map(mapDivId).setView([r.lat, r.lng], 16);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution:'&copy; OpenStreetMap contributors'
+      }).addTo(m);
+      // 우리 동네 안전 지도와 동일하게 전체 민원을 마커로 표시(호버 시 접수번호 + 상세 팝업)
+      displayableReports().forEach(rep=>{
+        const marker = L.marker([rep.lat, rep.lng], { icon: makeMarkerIcon(rep.category, rep.status) }).addTo(m);
+        marker.bindTooltip(rep.id, { direction:'top', offset:[0,-38], className:'id-tooltip' });
+        marker.bindPopup(`
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+            ${chipSVG(rep.category, STATUS_COLORS[rep.status], 26)}
+            <b>${rep.category}</b>
+          </div>
+          ${rep.dong} · 도로: <b>${roadLabel(rep)}</b><br><b>접수번호: ${rep.id}</b><br>접수채널: ${channelBadge(rep.channel)}<br>${statusStepBar(rep.status, true)}`);
+        if(rep.id === reportId){ marker.openPopup(); }
+      });
+      const legendEl = document.getElementById(mapDivId + '-legend');
+      if(legendEl) legendEl.innerHTML = buildMapLegendHTML();
+      insightInlineMaps[mapDivId] = m;
+    } catch(e){ /* 지도 초기화 실패해도 나머지 화면은 정상 동작해야 합니다 */ }
+  }, 60);
+}
+
+/* ---------------- admin: dashboard ---------------- */
+/* 현재 보고서 기간 선택(월별/분기별)에 해당하는 민원만 반환 - 구청별 현황 카드와
+   민원분석 보고서가 항상 같은 기준으로 동기화되도록 공용으로 사용합니다. */
+function getSelectedPeriodItems(){
+  return reportPeriodType==='월별'
+    ? displayableReports().filter(r=>r.month===reportPeriodValue)
+    : displayableReports().filter(r=>quarterOf(r.month)===reportPeriodValue);
+}
+function selectedPeriodLabel(){
+  return reportPeriodType==='월별' ? `${reportPeriodValue}월` : `${reportPeriodValue}분기`;
+}
+
+function renderDashboard(){
+  const total = displayableReports().length;
+  const done = displayableReports().filter(r=>r.status==='완료').length;
+  const progress = total - done;
+  document.getElementById('statTotal').innerText = total;
+  document.getElementById('statProgress').innerText = progress;
+  document.getElementById('statDone').innerText = done;
+  document.getElementById('statAvg').innerText = '2.4시간';
+
+  renderReportTypeTabs();
+  renderReportPeriodTabs();
+
+  const channelBars = CHANNEL_LIST.map(ch=>{
+    const items = displayableReports().filter(r=>r.channel===ch);
+    const pct = total ? Math.round(items.length/total*100) : 0;
+    const c = CHANNELS[ch];
+    return `<div class="barrow">
+      <div class="label">${c.short}</div>
+      <div class="bartrack"><div class="barfill" style="width:${pct}%;background:${c.color};"></div></div>
+      <div class="num">${items.length}건</div>
+    </div>`;
+  }).join('');
+  document.getElementById('channelBars').innerHTML = channelBars || '<div class="empty">데이터 없음</div>';
+
+  const guPeriodItems = getSelectedPeriodItems();
+  const guLabelEl = document.getElementById('guCardsPeriodLabel');
+  if(guLabelEl) guLabelEl.textContent = `(${selectedPeriodLabel()} 기준)`;
+  const guCards = GU_LIST.map(gu=>{
+    const guDongs = GU_DONGS[gu];
+    const items = guPeriodItems.filter(r=>guDongs.includes(r.dong));
+    const doneCount = items.filter(r=>r.status==='완료').length;
+    const pct = items.length ? Math.round(doneCount/items.length*100) : 0;
+    const pop = guDongs.reduce((acc,d)=>acc + DONG_POPULATION[d].total, 0);
+    const guColor = GU_COLOR[gu] || '#5B6B85';
+    const catRows = CATEGORIES.map(cat=>{
+      const cnt = items.filter(r=>r.category===cat.name).length;
+      return `<div class="gu-cat-row">${categoryChipHTML(cat.name, '#5B6B85', 16)}<span>${cat.name}</span><span class="gu-cat-count">${cnt}건</span></div>`;
+    }).join('');
+    return `<div class="gu-card">
+      <div class="gu-card-head" style="background:${guColor};">
+        <div class="gu-name">${gu}</div>
+        <div class="gu-pop">인구 ${pop.toLocaleString()}명 · ${guDongs.length}개 읍면동</div>
+      </div>
+      <div class="gu-card-body">
+        <div class="gu-stats-row">
+          <div class="donut-ring sm" style="background:conic-gradient(${guColor} 0deg ${pct*3.6}deg, #dde3ee ${pct*3.6}deg 360deg);"><span>${pct}%</span></div>
+          <div class="gu-stats">
+            <div><div class="gk">민원</div><div class="gv">${items.length}건</div></div>
+            <div><div class="gk">완료율</div><div class="gv">${pct}%</div></div>
+          </div>
+        </div>
+        <div class="gu-cat-breakdown">${catRows}</div>
+      </div>
+    </div>`;
+  }).join('');
+  document.getElementById('guCards').innerHTML = guCards;
+
+  renderDongBarsGuTabs();
+  renderDongBars();
+
+  renderMatrixGuTabs();
+  renderMatrixDongTabs();
+  renderRoadMatrix();
+}
+
+/* 읍면동별 민원 현황: 구청 선택 + 처리율 수준에 따라 막대 색이 바뀌는 시인성 개선 버전 */
+let dongBarsGu = '전체';
+function renderDongBarsGuTabs(){
+  const el = document.getElementById('dongBarsGuTabs');
+  if(!el) return;
+  const opts = ['전체', ...GU_LIST];
+  el.innerHTML = opts.map(gu=>
+    `<button class="${dongBarsGu===gu?'active':''}" onclick="setDongBarsGu('${gu}')">${gu}</button>`
+  ).join('');
+}
+function setDongBarsGu(gu){
+  dongBarsGu = gu;
+  renderDongBarsGuTabs();
+  renderDongBars();
+}
+/* 완료율이 높을수록 같은 색(시그널 그린)이 더 진하게 보이는 단일 색상 그라데이션.
+   서로 다른 색(빨강/주황/초록)을 나눠 쓰는 대신, 하나의 색조 안에서 농도로만
+   수치의 크기를 표현해 시각적으로 더 정돈되고 직관적으로 읽힙니다. */
+function rateColor(pct){
+  const alpha = (0.18 + (pct/100) * 0.82).toFixed(2);
+  return `rgba(42,157,143,${alpha})`;
+}
+function renderDongBars(){
+  const el = document.getElementById('dongBars');
+  if(!el) return;
+  const guList = dongBarsGu==='전체' ? GU_LIST : [dongBarsGu];
+  const blocks = guList.map(gu=>{
+    const color = GU_COLOR[gu] || '#5B6B85';
+    const rows = GU_DONGS[gu].map(d=>{
+      const items = displayableReports().filter(r=>r.dong===d);
+      const doneCount = items.filter(r=>r.status==='완료').length;
+      const pct = items.length ? Math.round(doneCount/items.length*100) : 0;
+      return `<div class="barrow gu-barrow" style="--gu-color:${color};">
+        <div class="label">${d}</div>
+        <div class="bartrack"><div class="barfill" style="width:${pct}%;background:${rateColor(pct)};"></div></div>
+        <div class="num" style="color:var(--signal-green-dark);">${pct}%</div>
+      </div>`;
+    }).join('');
+    return `<div class="dong-group-badge" style="background:${color};">${gu}</div>${rows}`;
+  }).join('');
+  el.innerHTML = blocks || '<div class="empty">데이터 없음</div>';
+}
+
+/* ---------------- 민원분석 보고서 (월별/분기별) ---------------- */
+let reportPeriodType = '월별';
+let reportPeriodValue = CURRENT_MONTH;
+
+function renderReportTypeTabs(){
+  document.getElementById('reportTypeTabs').innerHTML = ['월별','분기별'].map(t=>
+    `<button class="${reportPeriodType===t?'active':''}" onclick="setReportType('${t}')">${t}</button>`
+  ).join('');
+}
+function setReportType(type){
+  reportPeriodType = type;
+  reportPeriodValue = type==='월별' ? CURRENT_MONTH : quarterOf(CURRENT_MONTH);
+  document.getElementById('reportOutput').innerHTML = '';
+  renderDashboard();
+}
+function renderReportPeriodTabs(){
+  const list = reportPeriodType==='월별' ? MONTH_LIST : QUARTER_LIST;
+  document.getElementById('reportPeriodTabs').innerHTML = list.map(v=>{
+    const label = reportPeriodType==='월별' ? `${v}월` : `${v}분기`;
+    return `<button class="${reportPeriodValue===v?'active':''}" onclick="setReportPeriod(${v})">${label}</button>`;
+  }).join('');
+}
+function setReportPeriod(v){
+  reportPeriodValue = v;
+  document.getElementById('reportOutput').innerHTML = '';
+  renderDashboard();
+}
+
+/* 선택 기간과 직전 기간의 데이터를 비교 분석해 보고서 문서를 자동 작성 */
+function generateComplaintReport(){
+  const out = document.getElementById('reportOutput');
+  out.innerHTML = `<div class="thinking-line"><span class="spinner"></span> 접수 데이터를 취합해 보고서를 작성하는 중...</div>`;
+
+  setTimeout(()=>{
+    const isMonthly = reportPeriodType==='월별';
+    const periodLabel = isMonthly ? `2026년 ${reportPeriodValue}월` : `2026년 ${reportPeriodValue}분기`;
+    const items = getSelectedPeriodItems();
+
+    const prevValue = reportPeriodValue - 1;
+    const prevItems = isMonthly
+      ? (MONTH_LIST.includes(prevValue) ? displayableReports().filter(r=>r.month===prevValue) : null)
+      : (QUARTER_LIST.includes(prevValue) ? displayableReports().filter(r=>quarterOf(r.month)===prevValue) : null);
+
+    const total = items.length;
+    const done = items.filter(r=>r.status==='완료').length;
+    const doneRate = total ? Math.round(done/total*100) : 0;
+    const urgent = items.filter(r=>r.priority==='상').length;
+
+    let changeHtml = '';
+    if(prevItems){
+      const diff = total - prevItems.length;
+      const diffPct = prevItems.length ? Math.round(diff/prevItems.length*100) : 0;
+      const cls = diff>0 ? 'up' : (diff<0 ? 'down' : '');
+      const arrow = diff>0 ? '▲' : (diff<0 ? '▼' : '-');
+      changeHtml = `<div class="rs-item"><div class="rs-k">전기간 대비</div><div class="rs-v ${cls}">${arrow} ${Math.abs(diffPct)}%</div></div>`;
+    } else {
+      changeHtml = `<div class="rs-item"><div class="rs-k">전기간 대비</div><div class="rs-v">비교 데이터 없음</div></div>`;
+    }
+
+    const catRows = CATEGORIES.map(cat=>{
+      const cnt = items.filter(r=>r.category===cat.name).length;
+      const pct = total ? Math.round(cnt/total*100) : 0;
+      return `<tr><td>${categoryChipHTML(cat.name, '#5B6B85', 18)} ${cat.name}</td><td class="num">${cnt}건</td><td class="num">${pct}%</td></tr>`;
+    }).join('');
+
+    const chRows = CHANNEL_LIST.map(ch=>{
+      const cnt = items.filter(r=>r.channel===ch).length;
+      const pct = total ? Math.round(cnt/total*100) : 0;
+      return `<tr><td>${channelBadge(ch)}</td><td class="num">${cnt}건</td><td class="num">${pct}%</td></tr>`;
+    }).join('');
+
+    const guRows = GU_LIST.map(gu=>{
+      const cnt = items.filter(r=>GU_DONGS[gu].includes(r.dong)).length;
+      const doneCnt = items.filter(r=>GU_DONGS[gu].includes(r.dong) && r.status==='완료').length;
+      const rate = cnt ? Math.round(doneCnt/cnt*100) : 0;
+      return `<tr><td>${gu}</td><td class="num">${cnt}건</td><td class="num">${rate}%</td></tr>`;
+    }).join('');
+
+    const byDong = {};
+    items.forEach(r=>{ byDong[r.dong] = (byDong[r.dong]||0) + 1; });
+    const topDongs = Object.keys(byDong).map(d=>({dong:d, count:byDong[d]})).sort((a,b)=>b.count-a.count).slice(0,3);
+    const byCat = {};
+    items.forEach(r=>{ byCat[r.category] = (byCat[r.category]||0) + 1; });
+    let topCat = null, topCatCount = 0;
+    Object.keys(byCat).forEach(c=>{ if(byCat[c]>topCatCount){ topCatCount = byCat[c]; topCat = c; } });
+    const kb = topCat ? CATEGORY_INSIGHT_KB[topCat] : null;
+    const narrative = total===0
+      ? '해당 기간에 접수된 민원이 없습니다.'
+      : `${periodLabel} 동안 총 ${total}건이 접수되었으며, 이 중 <b>${topCat}</b>이(가) ${topCatCount}건(${Math.round(topCatCount/total*100)}%)으로 가장 많았습니다. ` +
+        (topDongs[0] ? `지역별로는 <b>${topDongs[0].dong}</b>에서 가장 많은 ${topDongs[0].count}건이 접수되어 우선 관리가 필요합니다. ` : '') +
+        (kb ? kb.cause + ' ' + kb.recoTemplate(topDongs[0] ? topDongs[0].dong : '해당 지역') : '');
+
+    out.innerHTML = `
+      <div class="report-doc">
+        <div class="rd-header">
+          <div class="rd-title">화성 로드케어 · 도로·교통 민원 분석 보고서</div>
+          <div class="rd-sub">대상 기간: ${periodLabel} · 작성: AI 자동 분석 · 생성 시각: 방금 전</div>
+        </div>
+
+        <h4>1. 요약</h4>
+        <div class="report-summary-grid">
+          <div class="rs-item"><div class="rs-k">총 접수</div><div class="rs-v">${total}건</div></div>
+          <div class="rs-item"><div class="rs-k">처리완료율</div><div class="rs-v">${doneRate}%</div></div>
+          <div class="rs-item"><div class="rs-k">긴급(상) 건수</div><div class="rs-v">${urgent}건</div></div>
+          ${changeHtml}
+        </div>
+
+        <h4>2. 민원 유형별 현황</h4>
+        <table class="report-table"><thead><tr><th>유형</th><th>건수</th><th>비중</th></tr></thead>
+        <tbody>${catRows}</tbody></table>
+
+        <h4>3. 접수채널별 현황</h4>
+        <table class="report-table"><thead><tr><th>채널</th><th>건수</th><th>비중</th></tr></thead>
+        <tbody>${chRows}</tbody></table>
+
+        <h4>4. 구청별 현황</h4>
+        <table class="report-table"><thead><tr><th>구청</th><th>건수</th><th>완료율</th></tr></thead>
+        <tbody>${guRows}</tbody></table>
+
+        <h4>5. 최다 발생 지역 TOP3</h4>
+        <table class="report-table"><thead><tr><th>순위</th><th>읍면동</th><th>건수</th></tr></thead>
+        <tbody>${topDongs.length ? topDongs.map((d,i)=>`<tr><td>${i+1}위</td><td>${d.dong}</td><td class="num">${d.count}건</td></tr>`).join('') : '<tr><td colspan="3">데이터 없음</td></tr>'}</tbody></table>
+
+        <h4>6. AI 종합 소견 및 대응 권고</h4>
+        <div class="rd-narrative">${narrative}</div>
+      </div>
+    `;
+  }, 900);
+}
+
+
+let selectedMatrixGu = GU_LIST[0];
+let selectedMatrixDong = GU_DONGS[GU_LIST[0]][0];
+
+function renderMatrixGuTabs(){
+  const opts = ['전체', ...GU_LIST];
+  document.getElementById('matrixGuTabs').innerHTML = opts.map(gu=>
+    `<button class="${selectedMatrixGu===gu?'active':''}" onclick="setMatrixGu('${gu}')">${gu}</button>`
+  ).join('');
+}
+function setMatrixGu(gu){
+  selectedMatrixGu = gu;
+  selectedMatrixDong = gu==='전체' ? null : GU_DONGS[gu][0];
+  renderMatrixGuTabs();
+  renderMatrixDongTabs();
+  renderRoadMatrix();
+}
+
+function renderMatrixDongTabs(){
+  const el = document.getElementById('matrixDongTabs');
+  if(selectedMatrixGu==='전체'){
+    el.innerHTML = '';
+    return;
+  }
+  el.innerHTML = GU_DONGS[selectedMatrixGu].map(d=>
+    `<button class="${selectedMatrixDong===d?'active':''}" onclick="setMatrixDong('${d}')">${d}</button>`
+  ).join('');
+}
+function setMatrixDong(dong){
+  selectedMatrixDong = dong;
+  renderMatrixDongTabs();
+  renderRoadMatrix();
+}
+
+/* 선택된 읍면동 내에서 등급×노선번호 조합별 접수 건수 집계 */
+function analyzeRoadMatrixForDong(dong){
+  const items = dong ? displayableReports().filter(r=>r.dong===dong) : displayableReports();
+  const cellCounts = {};
+  ROAD_COLUMNS.forEach(col=>{ cellCounts[col.grade+'|'+col.number] = 0; });
+  items.forEach(r=>{
+    const key = r.roadType+'|'+r.roadNumber;
+    if(cellCounts[key] !== undefined) cellCounts[key]++;
+  });
+  let maxCount = 0;
+  Object.values(cellCounts).forEach(c=>{ if(c>maxCount) maxCount = c; });
+  return {cellCounts, maxCount};
+}
+
+function heatCellStyle(count, maxCount){
+  if(!count) return '';
+  const ratio = maxCount ? count / maxCount : 0;
+  const alpha = (0.12 + ratio * 0.55).toFixed(2);
+  return `background:rgba(42,157,143,${alpha});`;
+}
+
+/* 세로축 = 도로등급(국도·지방도·시도·농어촌도로·도시계획도로·이면도로)
+   가로축 = 등급별 실제 노선번호(예: 시도57호선의 '57호선') — 우리 동네 안전 지도와 동일한 번호 사용 */
+function renderRoadMatrix(){
+  const dong = selectedMatrixDong;
+  const cornerLabel = dong ? dong : '화성시 전체';
+  const {cellCounts, maxCount} = analyzeRoadMatrixForDong(dong);
+
+  const groupHeaderCells = ROAD_TYPES.map(rt=>{
+    const span = ROAD_NUMBER_POOL[rt].length;
+    return `<th colspan="${span}">${rt}</th>`;
+  }).join('');
+  const numberHeaderCells = ROAD_COLUMNS.map(col=>`<th>${col.number}</th>`).join('');
+
+  const bodyRows = ROAD_TYPES.map(rowGrade=>{
+    let rowTotal = 0;
+    const cells = ROAD_COLUMNS.map(col=>{
+      if(col.grade !== rowGrade){
+        return `<td class="rm-cell na">-</td>`;
+      }
+      const count = cellCounts[col.grade+'|'+col.number] || 0;
+      rowTotal += count;
+      return `<td class="rm-cell ${count?'':'zero'}" style="${heatCellStyle(count, maxCount)}">${count}</td>`;
+    }).join('');
+    return `<tr><td class="rm-donglabel">${rowGrade}</td>${cells}<td class="rm-total">${rowTotal}</td></tr>`;
+  }).join('');
+
+  const colTotals = ROAD_COLUMNS.map(col=>{
+    const sum = cellCounts[col.grade+'|'+col.number] || 0;
+    return `<td class="rm-total">${sum}</td>`;
+  }).join('');
+  const grandTotal = Object.values(cellCounts).reduce((a,b)=>a+b, 0);
+
+  document.getElementById('roadMatrixTable').innerHTML = `
+    <thead>
+      <tr><th class="rm-corner" rowspan="2">${cornerLabel}<br>등급 \\ 노선번호</th>${groupHeaderCells}<th class="rm-corner" rowspan="2">합계</th></tr>
+      <tr>${numberHeaderCells}</tr>
+    </thead>
+    <tbody>
+      ${bodyRows}
+      <tr><td class="rm-total">합계</td>${colTotals}<td class="rm-total">${grandTotal}</td></tr>
+    </tbody>
+  `;
+}
+
+/* ---------------- admin: tasks ---------------- */
+const priorityRank = {'상':0,'중':1,'하':2};
+let taskChannelFilter = '전체';
+
+function renderTaskChannelFilter(){
+  const opts = ['전체', ...CHANNEL_LIST];
+  document.getElementById('taskChannelFilter').innerHTML = opts.map(ch=>{
+    const label = ch==='전체' ? '전체' : CHANNELS[ch].short;
+    return `<button class="${taskChannelFilter===ch?'active':''}" onclick="setTaskChannelFilter('${ch}')">${label}</button>`;
+  }).join('');
+}
+function setTaskChannelFilter(ch){
+  taskChannelFilter = ch;
+  renderTasks();
+}
+
+/* 접수→배정→출동 다음 단계 버튼과 함께, "완료 등록"은 어느 단계에서든
+   바로 누를 수 있도록 항상 함께 보여줍니다 (단계를 건너뛰고 바로 완료 처리하고
+   싶은 실무 상황을 위해). */
+function nextStatusButtonHTML(r, extraOnclick){
+  const stop = 'event.stopPropagation();';
+  const extra = extraOnclick || '';
+  let stepBtn = '';
+  if(r.status==='접수'){
+    stepBtn = `<button class="small-btn" onclick="${stop} ${extra} openStatusInputModal('${r.id}','배정')">배정</button>`;
+  } else if(r.status==='배정'){
+    stepBtn = `<button class="small-btn" onclick="${stop} ${extra} openStatusInputModal('${r.id}','출동')">출동</button>`;
+  }
+  const completeBtn = `<button class="small-btn" onclick="${stop} ${extra} openModal('${r.id}')">완료 등록</button>`;
+  return `<div style="display:flex;gap:6px;flex-wrap:wrap;">${stepBtn}${completeBtn}</div>`;
+}
+
+/* 배정: 담당 부서명 입력 / 출동: 담당 부서명 + 출동 담당자 입력을 받은 뒤 상태를 변경합니다. */
+let statusInputState = {id:null, newStatus:null};
+
+function openStatusInputModal(id, newStatus){
+  const r = reports.find(x=>x.id===id);
+  if(!r) return;
+  statusInputState = {id, newStatus};
+  const title = newStatus==='배정' ? '배정 등록' : '출동 등록';
+  document.getElementById('statusInputTitle').innerText = title;
+  document.getElementById('statusInputTarget').innerHTML = `${categoryChipHTML(r.category, STATUS_COLORS[r.status], 18)} ${r.category} · ${r.dong} · ${r.id}`;
+  document.getElementById('statusInputDept').value = newStatus==='출동' ? (r.dispatchDept || r.assignedDept || '') : (r.assignedDept || '');
+  const staffField = document.getElementById('statusInputStaffField');
+  const staffInput = document.getElementById('statusInputStaff');
+  if(newStatus==='출동'){
+    staffField.style.display = 'block';
+    staffInput.value = r.dispatchStaff || '';
+  } else {
+    staffField.style.display = 'none';
+    staffInput.value = '';
+  }
+  document.getElementById('statusInputConfirmBtn').innerText = title;
+  document.getElementById('statusInputModal').classList.add('show');
+}
+
+function closeStatusInputModal(){
+  document.getElementById('statusInputModal').classList.remove('show');
+}
+
+function confirmStatusInput(){
+  const {id, newStatus} = statusInputState;
+  const r = reports.find(x=>x.id===id);
+  if(!r){ closeStatusInputModal(); return; }
+  const dept = document.getElementById('statusInputDept').value.trim();
+  if(!dept){ alert('담당 부서명을 입력해 주세요.'); return; }
+  if(newStatus==='배정'){
+    r.assignedDept = dept;
+  } else if(newStatus==='출동'){
+    const staff = document.getElementById('statusInputStaff').value.trim();
+    if(!staff){ alert('출동 담당자를 입력해 주세요.'); return; }
+    r.dispatchDept = dept;
+    r.dispatchStaff = staff;
+  }
+  r.status = newStatus;
+  closeStatusInputModal();
+  renderTasks();
+  renderDashboard();
+  // 관리카드가 이 민원을 보여주고 있었다면 최신 상태로 다시 그립니다.
+  if(document.getElementById('manageModal').classList.contains('show')){
+    openManageCard(id);
+  }
+}
+
+let taskGuFilter = '전체';
+function renderTaskGuFilter(){
+  const opts = ['전체', ...GU_LIST];
+  document.getElementById('taskGuFilter').innerHTML = opts.map(gu=>
+    `<button class="${taskGuFilter===gu?'active':''}" onclick="setTaskGuFilter('${gu}')">${gu}</button>`
+  ).join('');
+}
+function setTaskGuFilter(gu){
+  taskGuFilter = gu;
+  renderTasks();
+}
+
+let taskStatusFilter = '진행중';
+function renderTaskStatusFilter(){
+  const opts = ['전체','진행중','완료'];
+  document.getElementById('taskStatusFilter').innerHTML = opts.map(s=>
+    `<button class="${taskStatusFilter===s?'active':''}" onclick="setTaskStatusFilter('${s}')">${s}</button>`
+  ).join('');
+}
+function setTaskStatusFilter(s){
+  taskStatusFilter = s;
+  renderTasks();
+}
+
+/* 현재 선택된 구청·상태·채널 필터를 그대로 적용한 목록을 반환 (표 렌더링·엑셀 다운로드 공용) */
+function getFilteredTasks(){
+  let active = displayableReports();
+  if(taskGuFilter!=='전체') active = active.filter(r=>DONG_TO_GU[r.dong]===taskGuFilter);
+  if(taskStatusFilter==='진행중') active = active.filter(r=>r.status!=='완료');
+  else if(taskStatusFilter==='완료') active = active.filter(r=>r.status==='완료');
+  if(taskChannelFilter!=='전체') active = active.filter(r=>r.channel===taskChannelFilter);
+  return active.sort((a,b)=>priorityRank[a.priority]-priorityRank[b.priority]);
+}
+
+function renderTasks(){
+  renderTaskGuFilter();
+  renderTaskStatusFilter();
+  renderTaskChannelFilter();
+  const active = getFilteredTasks();
+  const body = document.getElementById('taskBody');
+  if(!active.length){
+    body.innerHTML = `<tr><td colspan="5"><div class="empty"><span class="big">✅</span>표시할 민원이 없습니다</div></td></tr>`;
+    return;
+  }
+  body.innerHTML = active.map((r,i)=>`
+    <tr onclick="openManageCard('${r.id}')" style="cursor:pointer;">
+      <td><span class="route-num">${i+1}</span></td>
+      <td>
+        <div style="display:flex;align-items:center;gap:8px;">
+          ${chipSVG(r.category, STATUS_COLORS[r.status], 24)}
+          <b>${r.category}</b>
+          ${channelBadge(r.channel)}
+        </div>
+        <div class="addr-cell">${DONG_TO_GU[r.dong]||''} · ${r.dong} · ${r.id}</div>
+      </td>
+      <td><span class="pill ${r.priority}">${r.priority}</span></td>
+      <td>${statusStepBar(r.status, true)}</td>
+      <td>${r.status==='완료'
+        ? `<button class="small-btn" onclick="event.stopPropagation(); openManageCard('${r.id}')">📄 보고서 보기</button>`
+        : nextStatusButtonHTML(r)}</td>
+    </tr>
+  `).join('');
+}
+
+function openModal(id){
+  const r = reports.find(x=>x.id===id);
+  document.getElementById('modalTarget').innerText = `${r.category} · ${r.dong} · ${r.id}`;
+  document.getElementById('completeModal').dataset.id = id;
+  document.getElementById('reportDraft').style.display='none';
+  document.getElementById('completeModal').classList.add('show');
+}
+function closeModal(){ document.getElementById('completeModal').classList.remove('show'); }
+
+/* ---------------- 민원 관리카드 (위치도 + 사진 + 상세정보) ---------------- */
+let manageMiniMap = null;
+let manageMapTimer = null;
+
+function openManageCard(id){
+  const r = reports.find(x=>x.id===id);
+  if(!r) return;
+
+  // 완료 등록 버튼을 가장 먼저 그려서, 아래 다른 섹션에서 문제가 생기더라도
+  // "완료 등록" 흐름만큼은 항상 눌리도록 보장합니다.
+  let stepBtn = '';
+  if(r.status==='접수'){
+    stepBtn = `<button class="btn btn-outline" onclick="openStatusInputModal('${r.id}','배정')">➡️ 배정으로 변경</button>`;
+  } else if(r.status==='배정'){
+    stepBtn = `<button class="btn btn-outline" onclick="openStatusInputModal('${r.id}','출동')">➡️ 출동으로 변경</button>`;
+  }
+  const completeBtn = r.status!=='완료'
+    ? `<button class="btn btn-primary" onclick="closeManageModal(); openModal('${r.id}');">완료 등록</button>`
+    : '';
+  document.getElementById('manageActionRow').innerHTML = `
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      ${stepBtn}
+      ${completeBtn}
+      <button class="btn btn-outline" onclick="closeManageModal(); focusMapOnReport('${r.id}');">🗺️ 큰 지도에서 보기</button>
+    </div>`;
+  document.getElementById('manageModal').classList.add('show');
+
+  try {
+    document.getElementById('manageTarget').innerHTML =
+      `${categoryChipHTML(r.category, STATUS_COLORS[r.status], 20)} <b>${r.category}</b> · 접수번호 ${r.id}`;
+    document.getElementById('manageStatusBar').innerHTML = statusStepBar(r.status);
+
+    const gu = DONG_TO_GU[r.dong] || '-';
+    const channelInfo = CHANNELS[r.channel];
+    const infoItems = [
+      {k:'구청', v: gu},
+      {k:'읍면동', v: r.dong},
+      {k:'도로', v: roadLabel(r)},
+      {k:'접수채널', v: channelInfo ? channelInfo.short : r.channel},
+      {k:'담당/민원인', v: r.submitter || r.staff || '-'},
+      {k:'우선순위', v: r.priority},
+      {k:'접수월', v: `2026년 ${r.month}월`},
+      {k:'좌표', v: `${r.lat.toFixed(5)}, ${r.lng.toFixed(5)}`}
+    ];
+    if(r.assignedDept) infoItems.push({k:'배정 부서', v: r.assignedDept});
+    if(r.dispatchDept) infoItems.push({k:'출동 부서', v: r.dispatchDept});
+    if(r.dispatchStaff) infoItems.push({k:'출동 담당자', v: r.dispatchStaff});
+    document.getElementById('manageInfoGrid').innerHTML = infoItems.map(it=>
+      `<div class="mi-item"><div class="mi-k">${it.k}</div><div class="mi-v">${it.v}</div></div>`
+    ).join('');
+
+    // 현장 사진 (프로토타입이라 실제 업로드 이미지 대신 유형별 예시 아이콘 사용)
+    const color = ROUTE_CATEGORY_COLOR[r.category] || STATUS_COLORS[r.status] || '#5B6B85';
+    let photos = `<div class="manage-photo-box">
+        <span class="mp-tag">BEFORE</span>
+        <div class="mp-icon">${chipSVG(r.category, color, 44)}</div>
+        <div class="mp-label">접수 시 현장 사진 (예시)</div>
+      </div>`;
+    if(r.status === '완료'){
+      photos += `<div class="manage-photo-box" style="border-color:#bfe3db;background:#f3faf8;">
+        <span class="mp-tag" style="background:#1f7a70;">AFTER</span>
+        <div class="mp-icon">${chipSVG(r.category, '#2a9d8f', 44)}</div>
+        <div class="mp-label">처리 완료 사진 (예시)</div>
+      </div>`;
+    } else {
+      photos += `<div class="manage-photo-box">
+        <div class="mp-icon" style="opacity:0.4;">${chipSVG(r.category, '#a9b4c9', 44)}</div>
+        <div class="mp-label" style="color:#a9b4c9;">처리 후 등록 예정</div>
+      </div>`;
+    }
+    document.getElementById('managePhotoGrid').innerHTML = photos +
+      `<div class="manage-photo-note" style="grid-column:1/-1;">※ 프로토타입 화면이라 실제 업로드 사진 대신 예시 아이콘으로 표시됩니다. 실제 서비스에서는 시민·기동단이 촬영한 원본 사진이 여기에 표시됩니다.</div>`;
+
+    const reportBlock = document.getElementById('manageReportBlock');
+    if(r.status==='완료' && r.completionReport){
+      reportBlock.innerHTML = `
+        <label style="margin-top:16px;display:block;">처리결과 보고서 (완료 시 자동 생성됨${r.completedAt ? ' · '+r.completedAt : ''})</label>
+        <div class="report-draft" style="display:block;">${r.completionReport}</div>`;
+    } else {
+      reportBlock.innerHTML = '';
+    }
+  } catch(e){ /* 상세정보 렌더링 중 문제가 있어도 완료 등록 버튼은 이미 정상 동작합니다 */ }
+
+  if(manageMapTimer) { clearTimeout(manageMapTimer); manageMapTimer = null; }
+  manageMapTimer = setTimeout(()=>{
+    manageMapTimer = null;
+    // 그 사이 카드가 닫혔다면(빠르게 다른 버튼을 눌렀다면) 지도 초기화를 하지 않습니다.
+    if(!document.getElementById('manageModal').classList.contains('show')) return;
+    try {
+      if(manageMiniMap){ manageMiniMap.remove(); manageMiniMap = null; }
+      manageMiniMap = L.map('manageMiniMap', {zoomControl:false, dragging:false, scrollWheelZoom:false, doubleClickZoom:false})
+        .setView([r.lat, r.lng], 16);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution:'&copy; OpenStreetMap contributors'
+      }).addTo(manageMiniMap);
+      L.marker([r.lat, r.lng], {icon: makeMarkerIcon(r.category, r.status)}).addTo(manageMiniMap);
+    } catch(e){ /* 위치도 로드에 실패해도 관리카드의 나머지 기능(완료 등록 등)은 정상 동작해야 합니다 */ }
+  }, 60);
+}
+
+function closeManageModal(){
+  document.getElementById('manageModal').classList.remove('show');
+  if(manageMapTimer){ clearTimeout(manageMapTimer); manageMapTimer = null; }
+  if(manageMiniMap){
+    try { manageMiniMap.remove(); } catch(e){}
+    manageMiniMap = null;
+  }
+}
+
+function completeTask(){
+  const id = document.getElementById('completeModal').dataset.id;
+  const r = reports.find(x=>x.id===id);
+  if(!r){ closeModal(); return; }
+  r.status = '완료';
+  r.completedAt = `2026-${String(CURRENT_MONTH).padStart(2,'0')}-${String(CURRENT_DAY).padStart(2,'0')}`;
+  r.completionReport =
+`[처리결과 보고서 - 자동 생성]
+접수번호: ${r.id}
+민원유형: ${r.category}
+발생위치: 경기 화성시 ${r.dong} 일대
+처리부서: ${r.dept}
+조치내용: 현장 확인 후 응급조치 완료. Before/After 사진 첨부.
+처리결과: 완료 (시민 앱으로 결과 자동 전송됨)`;
+  const draft = document.getElementById('reportDraft');
+  draft.style.display='block';
+  draft.innerText = r.completionReport;
+  setTimeout(()=>{
+    closeModal();
+    renderTasks();
+    renderDashboard();
+    // 관리카드가 이 민원을 보여주고 있었다면 완료 상태·보고서를 즉시 반영합니다.
+    if(document.getElementById('manageModal').classList.contains('show')){
+      openManageCard(id);
+    }
+  }, 1400);
+}
+
+/* ---------------- 민원 접수 현황 다운로드 (CSV) ---------------- */
+/* 민원 목록을 CSV 문자열로 변환 (전체 다운로드·기동단 현황판 다운로드 공용) */
+function buildComplaintsCSV(list){
+  const headers = ['순번','접수번호','접수채널','민원인','담당직원(행정종합관찰관제)','민원유형','구청','읍면동','도로','우선순위','상태','배정부서','출동부서','출동담당자','접수일자','완료일자','위도','경도'];
+  const rows = list.map((r,i)=>{
+    const gu = DONG_TO_GU[r.dong] || '';
+    return [
+      i+1, r.id, r.channel, r.submitter || '-', r.staff || '-', r.category, gu, r.dong, roadLabel(r),
+      r.priority, r.status, r.assignedDept || '-', r.dispatchDept || '-', r.dispatchStaff || '-',
+      r.createdAt || '-', r.completedAt || '-', r.lat.toFixed(5), r.lng.toFixed(5)
+    ];
+  });
+  const csvLines = [headers, ...rows].map(row =>
+    row.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')
+  );
+  return '\uFEFF' + csvLines.join('\r\n'); // BOM 포함(엑셀 한글 깨짐 방지)
+}
+
+function downloadCSVFile(csvContent, filename){
+  const blob = new Blob([csvContent], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function downloadComplaintsCSV(){
+  downloadCSVFile(buildComplaintsCSV(displayableReports()), `화성로드케어_민원접수현황_${displayableReports().length}건.csv`);
+}
+
+/* "기동단 민원 현황"에서 현재 적용된 구청·상태·채널 필터 그대로 다운로드 */
+function downloadTaskViewCSV(){
+  const list = getFilteredTasks();
+  if(!list.length){ alert('현재 조회된 민원이 없어 다운로드할 내용이 없습니다.'); return; }
+  const guLabel = taskGuFilter==='전체' ? '전체구청' : taskGuFilter;
+  const statusLabel = taskStatusFilter;
+  const filename = `화성로드케어_기동단민원현황_${guLabel}_${statusLabel}_${list.length}건.csv`;
+  downloadCSVFile(buildComplaintsCSV(list), filename);
+}
+
+/* ---------------- 시상 총점 산정 (공통 로직) ----------------
+   ① 제출/등록 건수 ② 처리 기여도(완료율) ③ 긴급민원 발굴 ④ 신고 유형 다양성
+   4가지 항목을 합산해 100점 만점의 총점과 근거를 함께 산출합니다.
+   field='submitter'면 우수민원인(시민), field='staff'면 우수 직원(행정종합관찰관제 담당자) 집계입니다. */
+/* 시상은 1년에 두 번(상반기 1~6월·하반기 7~12월) 진행됩니다. */
+let awardHalf = '상반기';
+function renderAwardHalfTabs(){
+  const el = document.getElementById('awardHalfTabs');
+  if(!el) return;
+  el.innerHTML = ['상반기','하반기'].map(h=>
+    `<button class="${awardHalf===h?'active':''}" onclick="setAwardHalf('${h}')">${h}</button>`
+  ).join('');
+}
+function setAwardHalf(h){
+  awardHalf = h;
+  renderAwardHalfTabs();
+  renderAwardRanking();
+  renderStaffAwardRanking();
+}
+function getAwardHalfMonths(){
+  return awardHalf==='상반기' ? [1,2,3,4,5,6] : [7,8,9,10,11,12];
+}
+function computeScoresByField(field){
+  const halfMonths = getAwardHalfMonths();
+  const eligible = reports.filter(r=>r[field] && halfMonths.includes(r.month));
+  const byName = {};
+  eligible.forEach(r=>{
+    if(!byName[r[field]]) byName[r[field]] = [];
+    byName[r[field]].push(r);
+  });
+  const scores = Object.keys(byName).map(name=>{
+    const items = byName[name];
+    const count = items.length;
+    const doneCount = items.filter(r=>r.status==='완료').length;
+    const validRate = count ? doneCount/count : 0;
+    const urgentCount = items.filter(r=>r.priority==='상').length;
+    const catVariety = new Set(items.map(r=>r.category)).size;
+
+    const countScore = Math.min(40, count*8);
+    const validScore = Math.round(validRate*30);
+    const urgentScore = Math.min(20, urgentCount*7);
+    const varietyScore = Math.min(10, Math.round(catVariety*2.5));
+    const totalScore = countScore + validScore + urgentScore + varietyScore;
+
+    const verb = field==='staff' ? '등록' : '제출';
+    const reason = `${verb} ${count}건(${countScore}점) · 처리완료 기여 ${Math.round(validRate*100)}%(${validScore}점) · `
+      + `긴급민원 발굴 ${urgentCount}건(${urgentScore}점) · 신고유형 다양성 ${catVariety}종(${varietyScore}점)`;
+
+    return {name, count, doneCount, urgentCount, catVariety, totalScore, reason};
+  });
+  return scores.sort((a,b)=>b.totalScore-a.totalScore);
+}
+function computeCitizenScores(){ return computeScoresByField('submitter'); }
+
+/* ---------------- 우수직원 시상: 2026년 상반기 행정종합관찰제 인센티브 평가지표(붙임) 기준 ----------------
+   출처 항목: "1. 행정종합관찰제 관찰·처리 우수 직원"
+   - 관찰 우수 / 처리 우수를 개인별로 별도 산정 (관찰=행정종합관찰제로 등록한 누적건수,
+     처리=등록 건 중 완료 처리된 누적건수 — "개인별 누적점수"의 프록시로 건수를 사용)
+   - 훈격: 최우수(100만원) · 우수(50만원) · 장려(30만원) · 노력(20만원) — 붙임 예시표 기준
+   - 최우수·우수·장려는 30건 이상자 중에서 선정, 노력은 그 외 참여자 전원
+   - 동시 선정 시, 관찰 우수·처리 우수 중 더 높은 훈격 1개만 인정(중복 수상 방지) */
+const STAFF_AWARD_TIERS = [
+  {name:'최우수', count:3, prize:'100만원'},
+  {name:'우수', count:10, prize:'50만원'},
+  {name:'장려', count:15, prize:'30만원'},
+  {name:'노력', count:Infinity, prize:'20만원'}
+];
+const STAFF_AWARD_MIN_COUNT = 30;
+const STAFF_TIER_RANK = {'최우수':4, '우수':3, '장려':2, '노력':1};
+const STAFF_TIER_PILL_CLASS = {'최우수':'상', '우수':'중', '장려':'하', '노력':'노력'};
+
+function computeStaffFieldRanking(kind){ // kind: 'observe'(관찰) | 'process'(처리)
+  const halfMonths = getAwardHalfMonths();
+  const eligible = reports.filter(r=>r.staff && halfMonths.includes(r.month));
+  const byName = {};
+  eligible.forEach(r=>{
+    if(!byName[r.staff]) byName[r.staff] = [];
+    byName[r.staff].push(r);
+  });
+  const rows = Object.keys(byName).map(name=>{
+    const items = byName[name];
+    const observeCount = items.length;
+    const processCount = items.filter(r=>r.status==='완료').length;
+    return {name, observeCount, processCount, count: kind==='observe' ? observeCount : processCount};
+  });
+  return rows.filter(r=>r.count >= 1).sort((a,b)=>b.count-a.count);
+}
+function assignStaffTiers(ranking){
+  let topSlotIdx = 0; // 최우수·우수·장려 슬롯(28명) 카운터 - 30건 이상자에게만 적용
+  return ranking.map(r=>{
+    let tier;
+    if(r.count >= STAFF_AWARD_MIN_COUNT){
+      let running = 0, matched = null;
+      for(const t of STAFF_AWARD_TIERS.slice(0, 3)){
+        if(topSlotIdx < running + t.count){ matched = t; break; }
+        running += t.count;
+      }
+      if(matched){ tier = matched; topSlotIdx++; }
+      else tier = STAFF_AWARD_TIERS[3]; // 30건 이상이지만 상위 28명 슬롯을 초과한 경우
+    } else {
+      tier = STAFF_AWARD_TIERS[3]; // 30건 미만은 전원 노력
+    }
+    return {...r, tier};
+  });
+}
+
+/* 관찰 우수 / 처리 우수 전환 토글 */
+let staffAwardKind = 'observe';
+function renderStaffAwardKindTabs(){
+  const el = document.getElementById('staffAwardKindTabs');
+  if(!el) return;
+  const opts = [{v:'observe', label:'📡 관찰 우수'}, {v:'process', label:'✅ 처리 우수'}];
+  el.innerHTML = opts.map(o=>
+    `<button class="${staffAwardKind===o.v?'active':''}" onclick="setStaffAwardKind('${o.v}')">${o.label}</button>`
+  ).join('');
+}
+function setStaffAwardKind(v){
+  staffAwardKind = v;
+  renderStaffAwardKindTabs();
+  renderStaffAwardRanking();
+}
+
+function renderStaffAwardRanking(){
+  const out = document.getElementById('staffAwardBody');
+  const meta = document.getElementById('staffAwardMeta');
+  out.innerHTML = `<tr><td colspan="5"><div class="thinking-line"><span class="spinner"></span> 직원별 관찰·처리 실적을 평가지표 기준으로 집계하는 중...</div></td></tr>`;
+  meta.innerHTML = '';
+  renderStaffAwardKindTabs();
+
+  setTimeout(()=>{
+    let observeRanking = assignStaffTiers(computeStaffFieldRanking('observe'));
+    let processRanking = assignStaffTiers(computeStaffFieldRanking('process'));
+
+    // 동시 선정 시 더 높은 등급 1개만 인정 (단, 둘 다 "노력"이면 참여 집계이므로 배제하지 않음)
+    observeRanking.forEach(o=>{
+      const p = processRanking.find(x=>x.name===o.name);
+      if(p && (o.tier.name!=='노력' || p.tier.name!=='노력')){
+        if(STAFF_TIER_RANK[o.tier.name] >= STAFF_TIER_RANK[p.tier.name]) p.excluded = true;
+        else o.excluded = true;
+      }
+    });
+    observeRanking = observeRanking.filter(r=>!r.excluded);
+    processRanking = processRanking.filter(r=>!r.excluded);
+
+    const ranking = staffAwardKind==='observe' ? observeRanking : processRanking;
+    const kindLabel = staffAwardKind==='observe' ? '관찰 우수 (행정종합관찰제 등록 누적건수 기준)' : '처리 우수 (등록 건 중 완료 누적건수 기준)';
+
+    meta.innerHTML = `현재 보기: <b>${kindLabel}</b> · 평가 기준: <b>2026년 행정종합관찰제 인센티브 평가지표</b> · 훈격: 최우수·우수·장려(30건 이상)·노력(그 외 참여자) · 산정 시각: 방금 전`;
+
+    if(!ranking.length){
+      out.innerHTML = `<tr><td colspan="5"><div class="empty"><span class="big">🏆</span>현재 프로토타입 데이터 규모상 30건 이상 관찰·처리한 직원이 없습니다.<br>실제 서비스에서는 누적 데이터가 커지면서 조건 충족자가 자연스럽게 발생합니다.</div></td></tr>`;
+      return;
+    }
+
+    out.innerHTML = ranking.map(r=>`
+      <tr>
+        <td><span class="pill ${STAFF_TIER_PILL_CLASS[r.tier.name]}" style="font-size:11px;">${r.tier.name}</span></td>
+        <td><b>${r.name}</b></td>
+        <td>${r.count}건</td>
+        <td style="font-family:var(--font-mono);font-weight:700;color:var(--signal-green-dark);">${r.tier.prize}</td>
+        <td style="font-family:var(--font-mono);font-size:11.5px;color:var(--ink-soft);">관찰 ${r.observeCount}건 · 처리 ${r.processCount}건</td>
+      </tr>
+    `).join('');
+  }, 700);
+}
+
+/* 우수민원인 / 우수직원 시상 섹션 전환 토글 */
+let awardTypeTab = 'citizen';
+function renderAwardTypeTabs(){
+  const opts = [{v:'citizen', label:'🧑 우수민원인'}, {v:'staff', label:'👮 우수직원'}];
+  document.getElementById('awardTypeTabs').innerHTML = opts.map(o=>
+    `<button class="${awardTypeTab===o.v?'active':''}" onclick="setAwardTypeTab('${o.v}')">${o.label}</button>`
+  ).join('');
+  document.getElementById('award-citizen-section').style.display = awardTypeTab==='citizen' ? 'block' : 'none';
+  document.getElementById('award-staff-section').style.display = awardTypeTab==='staff' ? 'block' : 'none';
+}
+function setAwardTypeTab(v){
+  awardTypeTab = v;
+  renderAwardTypeTabs();
+}
+
+function renderAwardRanking(){
+  const out = document.getElementById('awardBody');
+  const meta = document.getElementById('awardMeta');
+  out.innerHTML = `<tr><td colspan="5"><div class="thinking-line"><span class="spinner"></span> 민원인별 제출 이력을 취합해 총점을 산정하는 중...</div></td></tr>`;
+  meta.innerHTML = '';
+
+  setTimeout(()=>{
+    const ranking = computeCitizenScores();
+    meta.innerHTML = `시상 대상(시민 직접 제출) 민원인: <b>${ranking.length}명</b> · 집계 기준: 도와드림·국민신문고 (행정종합관찰관제 제외) · 산정 시각: 방금 전`;
+
+    if(!ranking.length){
+      out.innerHTML = `<tr><td colspan="5"><div class="empty"><span class="big">🏆</span>집계할 시민 제출 민원이 없습니다</div></td></tr>`;
+      return;
+    }
+    const medals = ['🥇','🥈','🥉'];
+    out.innerHTML = ranking.map((r,i)=>`
+      <tr>
+        <td>${medals[i] || (i+1)+'위'}</td>
+        <td><b>${r.name}</b></td>
+        <td>${r.count}건</td>
+        <td><span class="pill 완료" style="font-size:12px;">${r.totalScore}점</span></td>
+        <td style="font-family:var(--font-mono);font-size:11.5px;color:var(--ink-soft);">${r.reason}</td>
+      </tr>
+    `).join('');
+  }, 700);
+}
+
+/* ---------------- 현장 순찰 동선 (포트홀 보수·불법현수막 철거·가로등 보수) ---------------- */
+let routeMap;
+let selectedRouteGu = GU_LIST[0];
+let selectedRouteDong = '전체';
+let routeMode = 'combined'; // 'combined' | 'byCategory'
+let routeDepotMarker = null;
+let cityHallMarker = null;
+
+/* 화성시청 위치(경기 화성시 남양읍 시청로 159) - 어떤 구청/읍면동을 선택해도
+   항상 지도에 표시되는 기준점입니다. */
+const HS_CITY_HALL = [37.1995, 126.8312];
+
+function initRouteView(){
+  renderRouteGuTabs();
+  renderRouteDongTabs();
+  renderRouteModeTabs();
+  if(!routeMap){
+    routeMap = L.map('routeMap').setView(GU_ZONE_CENTER[selectedRouteGu], 12);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution:'&copy; OpenStreetMap contributors'
+    }).addTo(routeMap);
+  } else {
+    routeMap.invalidateSize();
+  }
+  showCityHallMarker();
+  showRouteDepotMarker();
+}
+
+/* 화성시청 마커 - 순찰 동선 지도를 새로 그릴 때마다(구청/읍면동 변경, 동선 분석 등)
+   항상 다시 표시해 화면에서 사라지지 않도록 합니다. */
+function showCityHallMarker(){
+  if(!routeMap) return;
+  if(cityHallMarker){ routeMap.removeLayer(cityHallMarker); cityHallMarker = null; }
+  cityHallMarker = L.marker(HS_CITY_HALL, {
+    icon: L.divIcon({
+      html:`<div style="background:#14396b;color:#fff;font-size:11px;font-weight:700;width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2.5px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.45);font-family:var(--font-mono,monospace);">시청</div>`,
+      className:'', iconSize:[34,34], iconAnchor:[17,17]
+    })
+  }).addTo(routeMap).bindPopup('<b>화성시청</b><br>경기 화성시 남양읍 시청로 159');
+}
+
+/* 현재 선택된 구청/읍면동에 따라 순찰 동선의 출발점을 결정합니다.
+   - 읍면동을 '전체'로 두면 출발점은 구청(청사) 위치
+   - 특정 읍면동을 선택하면 그 읍면동의 행정복지센터(읍사무소/면사무소/동주민센터) 위치 */
+function getRouteDepot(){
+  if(selectedRouteDong === '전체'){
+    const guLabel = selectedRouteGu==='만세구청' ? '만세구청 (화성종합경기타운) (출발점)' : `${selectedRouteGu} (출발점)`;
+    return { latlng: GU_ZONE_CENTER[selectedRouteGu], label: guLabel, icon:'🏛️' };
+  }
+  return { latlng: DONG_COORDS[selectedRouteDong], label: `${selectedRouteDong} 행정복지센터 (출발점)`, icon:'🏢' };
+}
+
+/* 구청/읍면동 탭을 누르는 즉시 지도에 출발점을 표시하고 그 위치로 이동 */
+function showRouteDepotMarker(){
+  if(!routeMap) return;
+  const depot = getRouteDepot();
+  if(routeDepotMarker){ routeMap.removeLayer(routeDepotMarker); routeDepotMarker = null; }
+  routeDepotMarker = L.marker(depot.latlng, {
+    icon: L.divIcon({
+      html:`<div style="background:var(--asphalt,#16233F);color:#fff;font-size:15px;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2.5px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.4);">${depot.icon}</div>`,
+      className:'', iconSize:[32,32], iconAnchor:[16,16]
+    })
+  }).addTo(routeMap).bindPopup(`<b>${depot.label}</b>`).openPopup();
+  routeMap.setView(depot.latlng, selectedRouteDong==='전체' ? 12 : 14);
+}
+
+function renderRouteGuTabs(){
+  document.getElementById('routeGuTabs').innerHTML = GU_LIST.map(gu=>
+    `<button class="${selectedRouteGu===gu?'active':''}" onclick="setRouteGu('${gu}')">${gu}</button>`
+  ).join('');
+}
+function setRouteGu(gu){
+  selectedRouteGu = gu;
+  selectedRouteDong = '전체';
+  renderRouteGuTabs();
+  renderRouteDongTabs();
+  showRouteDepotMarker();
+}
+function renderRouteDongTabs(){
+  const opts = ['전체', ...GU_DONGS[selectedRouteGu]];
+  document.getElementById('routeDongTabs').innerHTML = opts.map(d=>
+    `<button class="${selectedRouteDong===d?'active':''}" onclick="setRouteDong('${d}')">${d}</button>`
+  ).join('');
+}
+function setRouteDong(d){
+  selectedRouteDong = d;
+  renderRouteDongTabs();
+  showRouteDepotMarker();
+}
+function renderRouteModeTabs(){
+  const opts = [{v:'combined', label:'전체 동선'}, {v:'byCategory', label:'민원별 동선'}];
+  document.getElementById('routeModeTabs').innerHTML = opts.map(o=>
+    `<button class="${routeMode===o.v?'active':''}" onclick="setRouteMode('${o.v}')">${o.label}</button>`
+  ).join('');
+}
+function setRouteMode(mode){
+  routeMode = mode;
+  renderRouteModeTabs();
+}
+
+/* 두 좌표 간 거리(km) - 하버사인 공식 */
+function distanceKm(lat1,lng1,lat2,lng2){
+  const R = 6371;
+  const dLat = (lat2-lat1) * Math.PI/180;
+  const dLng = (lng2-lng1) * Math.PI/180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+/* 최근접 이웃(Nearest Neighbor) 휴리스틱으로 방문 순서를 정렬 - 구청 위치를 출발점으로 함 */
+function buildNearestNeighborRoute(points, startLatLng){
+  let current = startLatLng;
+  const remaining = points.slice();
+  const ordered = [];
+  while(remaining.length){
+    let bestIdx = 0, bestDist = Infinity;
+    remaining.forEach((p,idx)=>{
+      const d = distanceKm(current[0], current[1], p.lat, p.lng);
+      if(d < bestDist){ bestDist = d; bestIdx = idx; }
+    });
+    const next = remaining.splice(bestIdx,1)[0];
+    ordered.push({...next, legDistance: bestDist});
+    current = [next.lat, next.lng];
+  }
+  return ordered;
+}
+
+/* 하나의 경로(출발점→방문지점들)를 지도에 그리고 요약 정보를 반환 */
+function drawSingleRoute(items, depot, lineColor, dashArray){
+  const ordered = buildNearestNeighborRoute(items, depot);
+  const totalDist = ordered.reduce((acc,p)=>acc + p.legDistance, 0);
+  const latlngs = [depot];
+  ordered.forEach((p, i)=>{
+    const color = ROUTE_CATEGORY_COLOR[p.category] || '#5B6B85';
+    const marker = L.marker([p.lat, p.lng], {
+      icon: L.divIcon({
+        html:`<div style="background:${color};color:#fff;font-family:var(--font-mono,monospace);font-weight:700;font-size:12px;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 2px 5px rgba(0,0,0,0.4);">${i+1}</div>`,
+        className:'', iconSize:[26,26], iconAnchor:[13,13]
+      })
+    }).addTo(routeMap);
+    marker.bindPopup(`<b>${i+1}. ${p.category}</b><br>${p.dong} · 도로: ${roadLabel(p)}<br>접수번호: ${p.id}<br>우선순위: ${p.priority}`);
+    latlngs.push([p.lat, p.lng]);
+  });
+  L.polyline(latlngs, {color:lineColor, weight:3, dashArray:dashArray, opacity:0.8}).addTo(routeMap);
+  return {ordered, totalDist, latlngs};
+}
+
+/* 접수된 순서 그대로(정렬 없이) 방문했을 때의 이동거리 - AI 최적 동선과 비교하기 위한 기준값 */
+function naiveRouteDistance(items, depot){
+  let dist = 0, cur = depot;
+  items.forEach(p=>{
+    dist += distanceKm(cur[0], cur[1], p.lat, p.lng);
+    cur = [p.lat, p.lng];
+  });
+  return dist;
+}
+function routeEfficiencyBadge(naiveDist, aiDist){
+  if(!naiveDist) return '';
+  const reduction = Math.max(0, Math.round((1 - aiDist/naiveDist) * 100));
+  return `<div class="route-efficiency-badge">
+    🎯 AI 최적 순찰 동선 적용 시 <b>임의 순서 대비 이동거리 ${reduction}% 감소</b>
+    <span class="route-efficiency-detail">(임의 순서 ${naiveDist.toFixed(1)}km → AI 최적 ${aiDist.toFixed(1)}km)</span>
+  </div>`;
+}
+
+function generateRoute(){
+  const meta = document.getElementById('routeMeta');
+  const stopBody = document.getElementById('routeStopBody');
+  meta.innerHTML = `<div class="thinking-line"><span class="spinner"></span> 미처리 민원 위치를 분석해 최적 동선을 계산하는 중...</div>`;
+  stopBody.innerHTML = '';
+
+  setTimeout(()=>{
+    const scopeDongs = selectedRouteDong==='전체' ? GU_DONGS[selectedRouteGu] : [selectedRouteDong];
+    const targets = displayableReports().filter(r =>
+      ROUTE_CATEGORIES.includes(r.category) &&
+      r.status !== '완료' &&
+      scopeDongs.includes(r.dong)
+    );
+
+    // 기존 동선(마커·선) 제거 (기본 타일 레이어는 유지)
+    if(routeMap){
+      routeMap.eachLayer(layer=>{
+        if(layer instanceof L.Marker || layer instanceof L.Polyline) routeMap.removeLayer(layer);
+      });
+      routeDepotMarker = null;
+      cityHallMarker = null;
+    }
+    showCityHallMarker();
+
+    if(!targets.length){
+      showRouteDepotMarker();
+      meta.innerHTML = `대상 지역: <b>${selectedRouteGu} ${selectedRouteDong}</b> · 미처리 보수 대상 민원이 없습니다.`;
+      stopBody.innerHTML = `<tr><td colspan="6"><div class="empty"><span class="big">✅</span>선택한 지역에 순찰이 필요한 민원이 없습니다</div></td></tr>`;
+      return;
+    }
+
+    const depotInfo = getRouteDepot();
+    const depot = depotInfo.latlng;
+    showRouteDepotMarker(); // 출발점(구청 또는 읍면동 행정복지센터) 마커 - 두 모드 공통
+
+    let allLatlngs = [depot, HS_CITY_HALL];
+
+    if(routeMode==='combined'){
+      // 포트홀·불법현수막·가로등을 한 동선으로 묶어서 방문 순서를 계산
+      const {ordered, totalDist, latlngs} = drawSingleRoute(targets, depot, '#16233F', '7 7');
+      const estMinutes = Math.round(totalDist / 25 * 60); // 평균 이동속도 25km/h 가정
+      const naiveDist = naiveRouteDistance(targets, depot);
+      allLatlngs = latlngs;
+
+      meta.innerHTML = `출발점: <b>${depotInfo.label.replace(' (출발점)','')}</b> · 대상 지역: <b>${selectedRouteGu} ${selectedRouteDong}</b> · 방문 지점: <b>${ordered.length}곳</b> · `
+        + `총 이동거리 약 <b>${totalDist.toFixed(1)}km</b> · 예상 소요시간 약 <b>${estMinutes}분</b>`
+        + routeEfficiencyBadge(naiveDist, totalDist);
+
+      stopBody.innerHTML = ordered.map((p,i)=>`
+        <tr>
+          <td><span class="route-num">${i+1}</span></td>
+          <td>${categoryChipHTML(p.category, ROUTE_CATEGORY_COLOR[p.category], 20)} ${p.category}</td>
+          <td>${p.dong} · ${roadLabel(p)}</td>
+          <td style="font-family:var(--font-mono);font-size:12px;">${p.id}</td>
+          <td><span class="pill ${p.priority}">${p.priority}</span></td>
+          <td style="font-family:var(--font-mono);font-size:12px;">${p.legDistance.toFixed(1)}km</td>
+        </tr>
+      `).join('');
+
+    } else {
+      // 민원 유형별로 각각 별도의 동선을 계산해 색상별로 구분해서 그림
+      const metaLines = [];
+      const bodyGroups = [];
+      let grandTotalDist = 0, grandTotalStops = 0, grandNaiveDist = 0;
+
+      ROUTE_CATEGORIES.forEach(cat=>{
+        const subItems = targets.filter(t=>t.category===cat);
+        if(!subItems.length) return;
+        const color = ROUTE_CATEGORY_COLOR[cat];
+        const {ordered, totalDist, latlngs} = drawSingleRoute(subItems, depot, color, '4 4');
+        const estMinutes = Math.round(totalDist / 25 * 60);
+        grandTotalDist += totalDist;
+        grandTotalStops += ordered.length;
+        grandNaiveDist += naiveRouteDistance(subItems, depot);
+        allLatlngs = allLatlngs.concat(latlngs);
+
+        metaLines.push(
+          `<div class="barrow" style="margin-bottom:6px;">
+            <div class="label" style="width:auto;min-width:110px;">${categoryChipHTML(cat, color, 18)} ${cat}</div>
+            <div style="flex:1;font-family:var(--font-mono);font-size:12px;color:var(--ink-soft);">
+              방문 ${ordered.length}곳 · 약 ${totalDist.toFixed(1)}km · 약 ${estMinutes}분
+            </div>
+          </div>`
+        );
+
+        bodyGroups.push(
+          `<tr><td colspan="6" class="dong-group-title" style="border-top:none;">${categoryChipHTML(cat, color, 18)} ${cat} 동선 (${ordered.length}곳)</td></tr>` +
+          ordered.map((p,i)=>`
+            <tr>
+              <td><span class="route-num">${i+1}</span></td>
+              <td>${categoryChipHTML(p.category, color, 20)} ${p.category}</td>
+              <td>${p.dong} · ${roadLabel(p)}</td>
+              <td style="font-family:var(--font-mono);font-size:12px;">${p.id}</td>
+              <td><span class="pill ${p.priority}">${p.priority}</span></td>
+              <td style="font-family:var(--font-mono);font-size:12px;">${p.legDistance.toFixed(1)}km</td>
+            </tr>
+          `).join('')
+        );
+      });
+
+      meta.innerHTML = `<div>출발점: <b>${depotInfo.label.replace(' (출발점)','')}</b> · 대상 지역: <b>${selectedRouteGu} ${selectedRouteDong}</b> · 총 방문 지점: <b>${grandTotalStops}곳</b> · 총 이동거리 약 <b>${grandTotalDist.toFixed(1)}km</b></div>`
+        + `<div style="margin-top:8px;">${metaLines.join('')}</div>`
+        + routeEfficiencyBadge(grandNaiveDist, grandTotalDist);
+      stopBody.innerHTML = bodyGroups.join('');
+    }
+
+    routeMap.fitBounds(L.latLngBounds(allLatlngs), {padding:[30,30]});
+  }, 800);
+}
+</script>
+</body>
+</html>
